@@ -52,26 +52,24 @@ parser = ArgumentParser()
 parser.add_argument("-i", "--init", dest="initialization",
                     default='NonStatMoni.ini',
                     help="set initialization FILE", metavar="cfgFILE")
-parser.add_argument("-b", "--brms", dest='brms_file"', default=brmsfile,
+parser.add_argument("-b", "--brms", dest='brms_file', default=brmsfile,
                     help="set brms data file", metavar="brmsFILE")
 parser.add_argument("-d", "--dir", dest="hdir",
                     help="output directory", metavar="OutDir")
 
-args = parser.parse_args()
-par = Parameters(args.initialization)
-
+args = vars(parser.parse_args())
+par = Parameters(args['initialization'])
 # TODO: non e' piu' semplice semplicemente settare il default per opt.hdir?
-if args.hdir:
-    hdir = args.hdir
+if args['hdir']:
+    hdir = args['hdir']
 
 # ##### Loop over each channel ##############################
 # Rebuild the band list as a list
 for group, g_dict in par.group_dict.iteritems():
     extractbands(g_dict)
 # Read the BRMS data stored in the file.
-gpsb, gpse, fs, segments, times = brms_reader(args.brms_file, par.group_dict)
+gpsb, gpse, fs, segments, times = brms_reader(args['brms_file'], par.group_dict)
 par.extract_aux_channels(gpsb)
-
 print "Analyzing lock between %d and %d" % (gpsb, gpse)
 # TODO: trasformo questo pezzetto in una funzione o perdo in leggibilita'?
 if max(times) <= 300:
@@ -84,7 +82,6 @@ if max(times) > (60 * 100):
     t = times / 3600
     tunits = 'h'
 
-ipsh()
 
 # TODO: - che cazzo e' dt, non fa niente!
 

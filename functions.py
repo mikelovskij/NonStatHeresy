@@ -34,8 +34,8 @@ class Parameters:
         self.aux_source = cfg.get('GENERAL', 'aux_channel_source')
         self.n_groups = cfg.getint('GENERAL', 'n_groups')
         self.all_aux = cfg.getboolean('GENERAL', 'all_aux')
-        self.aux = cfg.get('GENERAL', 'aux_channels').split('\n')
-        self.excluded = cfg.get('GENERAL', 'exclude').split('\n')
+        self.aux = cfg.get('GENERAL', 'aux_channels').split('\n') if cfg.get('GENERAL', 'aux_channels') else None
+        self.excluded = cfg.get('GENERAL', 'exclude').split('\n') if cfg.get('GENERAL', 'exclude') else None
         self.nav = cfg.getint('GENERAL', 'averages')
         self.group_dict = {}
         self.aux_dict = {}
@@ -44,8 +44,8 @@ class Parameters:
             self.group_dict[section] = {'channel': cfg.get(section, 'channel'),
                                         'units': cfg.get(section, 'units'),
                                         'bands': cfg.get(section, 'bands'),
-                                        'aux': cfg.get(section, 'aux_channels').split('\n'),
-                                        'excl': cfg.get(section, 'exclusions').split('\n')
+                                        'aux': cfg.get(section, 'aux_channels').split('\n') if cfg.get(section, 'aux_channels') else None,
+                                        'excl': cfg.get(section, 'exclusions').split('\n') if cfg.get(section, 'exclusions') else None
                                         }
 
     def extract_aux_channels(self, gpsb):
@@ -53,50 +53,48 @@ class Parameters:
             chlist = get_channel_list(gpsb, self.aux_source)
             for aux_name in chlist:
                 self.aux_dict[aux_name] = set(self.group_dict.keys())
-        for excl_name in self.excluded:
+        for excl_name in self.excluded or []:
             try:
                 del(self.aux_dict[excl_name])
             except KeyError:
                 for aux_name in self.aux_dict.iterkeys():
-                    if fnmatch.fnmatch(aux_name, 'V1:' + excl_name + '*'):
+                    if (fnmatch.fnmatch(aux_name, 'V1:' + excl_name + '*') or fnmatch.fnmatch(aux_name, excl_name + '*')):
                         self.excluded.append(aux_name)
-        for aux_name in self.aux:
+        for aux_name in self.aux or []:
             self.aux_dict[aux_name] = set(self.group_dict.keys())
         for group_name, dic in self.group_dict.iteritems():
-            for excl_name in dic['excl']:
+            for excl_name in dic['excl'] or []:
                 try:
                     self.aux_dict[excl_name].remove(group_name)
                 except KeyError:
                     for aux_name in self.aux_dict.iterkeys():
-                        if fnmatch.fnmatch(aux_name, 'V1:' + excl_name + '*'):
+                        if (fnmatch.fnmatch(aux_name, 'V1:' + excl_name + '*') or fnmatch.fnmatch(aux_name, excl_name + '*')):
                             try:
                                 self.aux_dict[aux_name].remove(group_name)
                             except KeyError:
                                 pass
-            for aux_name in dic['aux']:
+            for aux_name in dic['aux'] or []:
                 try:
                     self.aux_dict[aux_name].add(group_name)
                 except KeyError:
                     self.aux_dict[aux_name] = {group_name}
 
 
-class TryFiveTimes:
-    def __init__(self, f):
-        self.f = f
-
-    def __call__(self, args):
+def tryfivetimes(f):
+    def wrapper(that, *args):
         attempts = 0
         out = None
         while attempts < 5:
             try:
-                out = self.f(args)
+                out = f(that, *args)
                 break
-            except IOError as e:
+            except (IOError, vrg.frame_lib.ChannelNotFound) as e:
                 attempts += 1
                 print e
                 if attempts == 5:
                     raise
         return out
+    return wrapper
 
 def extractbands(g_dict):
     g_dict['band_list'] = []

@@ -2,7 +2,7 @@ import numpy as np
 import scipy.signal as sig
 from time import time, ctime
 import virgotools as vrg
-from functions import decimate, TryFiveTimes # TODO: aggiornare un po' sto decimate dai
+from functions import decimate, tryfivetimes, ipsh # TODO: aggiornare un po' sto decimate dai
 
 
 # Class for the post_processing of the brms data with auxillary channels
@@ -25,7 +25,7 @@ class DataProcessing:
         estimated_points = 0
         for seg in self.segments:
             estimated_points += (seg[1] - seg[0]) * self.down_freq
-        self.nbins = 2 * (estimated_points * (1 / 3))
+        self.nbins = int(np.ceil(2 * (estimated_points ** (1.0 / 3))))
         self.n_points = int(pow(2, np.floor(np.log((2 * estimated_points) / (self.n_averages + 1)) / np.log(2))))
 
     # returns the indexes corresponding to the gpse and gpsb times specified
@@ -68,6 +68,8 @@ class DataProcessing:
             for band, brms in dic['brms_data'].iteritems():
                 self.brms_psd[group][band] = np.zeros(
                     (int(self.n_points / 2) + 1), dtype='float64')
+                self.brms_mean[group][band] = 0
+                self.brms_sqmean[group][band] = 0
                 n_fft = 0
                 for (gpsb, gpse), j in zip(self.segments,
                                            xrange(self.nsegments)):
@@ -94,19 +96,19 @@ class DataProcessing:
                                       data_source):
         brms_bands = []
         for group in aux_groups:
-            for band in self.group_dic[group]['brms_data'].iterkeys:
+            for band in self.group_dic[group]['brms_data'].iterkeys():
                 brms_bands.append((group, band))
         aux_psd = np.zeros(int(self.n_points / 2 + 1), dtype='float64')
-        csds = np.zeros((len(aux_groups), int(self.n_points / 2) + 1),
+        csds = np.zeros((len(brms_bands), int(self.n_points / 2) + 1),
                         dtype='complex128')
         aux_sum = 0
-        prod_sum = np.zeros(len(aux_groups), dtype='float64')
+        prod_sum = np.zeros(len(brms_bands), dtype='float64')
         aux_square_sum = 0
         t0 = time()
         nfft = 0
         hist = []
         for ((gpsb, gpse), j) in zip(self.segments, xrange(self.nsegments)):
-            print 'Processing channel {0}, step {0} of {1} ...'.format(
+            print 'Processing channel {0}, step {1} of {2} ...'.format(
                 aux_channel, j, self.nsegments)
             fft_per_segm, start, end = self.segment_indexes(gpsb, gpse)
             aux_data = self.get_channel_data(data_source,
@@ -192,7 +194,7 @@ class DataProcessing:
                 self.ccfs[aux_name][channel + band] = (p_mn - b_mn * a_mn) \
                     / np.sqrt((b_sq_mn - b_mn ** 2) * (a_sq_mn - a_mn ** 2))
 
-    @TryFiveTimes
+    @tryfivetimes
     def get_channel_data(self, data_source, channel, gpsb, gpse):
         # TODO: extract other stuff from ch i.e. the units?
         with vrg.getChannel(data_source, channel, gpsb, gpse - gpsb) as ch:

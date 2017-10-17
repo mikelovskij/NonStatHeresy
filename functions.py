@@ -80,6 +80,24 @@ class Parameters:
                     self.aux_dict[aux_name] = {group_name}
 
 
+class TryFiveTimes:
+    def __init__(self, f):
+        self.f = f
+
+    def __call__(self, args):
+        attempts = 0
+        out = None
+        while attempts < 5:
+            try:
+                out = self.f(args)
+                break
+            except IOError as e:
+                attempts += 1
+                print e
+                if attempts == 5:
+                    raise
+        return out
+
 def extractbands(g_dict):
     g_dict['band_list'] = []
     b = g_dict['bands'].split(':')

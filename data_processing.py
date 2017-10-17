@@ -2,7 +2,7 @@ import numpy as np
 import scipy.signal as sig
 from time import time, ctime
 import virgotools as vrg
-from functions import decimate  # TODO: aggiornare un po' sto decimate dai
+from functions import decimate, TryFiveTimes # TODO: aggiornare un po' sto decimate dai
 
 
 # Class for the post_processing of the brms data with auxillary channels
@@ -199,21 +199,3 @@ class DataProcessing:
             data = self.decimator_wrapper(ch)
         return data
 
-
-class TryFiveTimes:
-    def __init__(self, f):
-        self.f = f
-
-    def __call__(self, args):
-        attempts = 0
-        out = None
-        while attempts < 5:
-            try:
-                out = self.f(args)
-                break
-            except IOError as e:
-                attempts += 1
-                print e
-                if attempts == 5:
-                    raise
-        return out

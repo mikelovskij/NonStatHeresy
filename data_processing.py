@@ -7,23 +7,26 @@ from functions import decimate  # TODO: aggiornare un po' sto decimate dai
 
 # Class for the post_processing of the brms data with auxillary channels
 class DataProcessing:
-    def __init__(self, segments, down_freq, n_points, brms_data, times):
+    def __init__(self, segments, down_freq, n_averages, group_dic, times):
         self.segments = segments
         self.nsegments = len(self.segments)
         self.down_freq = down_freq
-        self.n_points = n_points
-        self.brms_data = brms_data
+        self.n_averages = n_averages
+        self.group_dic = group_dic
         self.brms_psd = {}
-        self.brms_sum = {}
-        self.brms_sqsum = {}
+        self.brms_mean = {}
+        self.brms_sqmean = {}
         self.times = times
         self.freqs = []
         self.aux_results = {}
+        self.cohs = {}
+        self.ccfs = {}
         # Rice estimator for nbins
         estimated_points = 0
         for seg in self.segments:
             estimated_points += (seg[1] - seg[0]) * self.down_freq
         self.nbins = 2 * (estimated_points * (1 / 3))
+        self.n_points = int(pow(2, np.floor(np.log((2 * estimated_points) / (self.n_averages + 1)) / np.log(2))))
 
     # returns the indexes corresponding to the gpse and gpsb times specified
     # and the number of fft windows that can be fitted in the segment
@@ -58,12 +61,12 @@ class DataProcessing:
 
     # computes the psds for the various brmss and stores them in a dictionary
     def cumulative_psd_computation(self):
-        for channel in self.brms_data:
-            self.brms_psd[channel] = {}
-            self.brms_sum[channel] = {}
-            self.brms_sqsum[channel] = {}
-            for band, brms in channel.iteritems():
-                self.brms_psd[channel][band] = np.zeros(
+        for group, dic in self.group_dic.iteritems():
+            self.brms_psd[group] = {}
+            self.brms_mean[group] = {}
+            self.brms_sqmean[group] = {}
+            for band, brms in dic['brms_data'].iteritems():
+                self.brms_psd[group][band] = np.zeros(
                     (int(self.n_points / 2) + 1), dtype='float64')
                 n_fft = 0
                 for (gpsb, gpse), j in zip(self.segments,
@@ -71,29 +74,33 @@ class DataProcessing:
                     fft_per_segm, start, end = self.segment_indexes(gpsb, gpse)
                     for i in xrange(fft_per_segm):
                         self.freqs, spec = sig.welch(
-                            brms[start + i * self.n_points
-                                 :start + (i + 1) * self.n_points],
+                            brms[start + i * self.n_points:
+                                 start + (i + 1) * self.n_points],
                             fs=self.down_freq,
                             window='hanning', nperseg=self.n_points)
-                        self.brms_psd[channel][band] += spec
-                        self.brms_sum[channel][band] += np.sum(
-                            brms[start + i * self.n_points
-                                 : start + (i + 1) * self.n_points])
-                        self.brms_sqsum[channel][band] += np.sum(
-                            brms[start + i * self.n_points
-                                 : start + (i + 1) * self.n_points] ** 2)
+                        self.brms_psd[group][band] += spec
+                        self.brms_mean[group][band] += np.sum(
+                            brms[start + i * self.n_points:
+                                 start + (i + 1) * self.n_points])
+                        self.brms_sqmean[group][band] += np.sum(
+                            brms[start + i * self.n_points:
+                                 start + (i + 1) * self.n_points] ** 2)
                         n_fft += 1
-                self.brms_psd[channel][band] /= n_fft
-                self.brms_sum[channel][band] /= n_fft
-                self.brms_sqsum[channel][band] /= n_fft
+                self.brms_psd[group][band] /= n_fft
+                self.brms_mean[group][band] /= n_fft
+                self.brms_sqmean[group][band] /= n_fft
 
-    def auxillary_psd_csd_correlation(self, aux_channel, brms_bands,
+    def auxillary_psd_csd_correlation(self, aux_channel, aux_groups,
                                       data_source):
+        brms_bands = []
+        for group in aux_groups:
+            for band in self.group_dic[group]['brms_data'].iterkeys:
+                brms_bands.append((group, band))
         aux_psd = np.zeros(int(self.n_points / 2 + 1), dtype='float64')
-        csds = np.zeros((len(brms_bands), int(self.n_points / 2) + 1),
+        csds = np.zeros((len(aux_groups), int(self.n_points / 2) + 1),
                         dtype='complex128')
         aux_sum = 0
-        prod_sum = np.zeros(len(brms_bands), dtype='float64')
+        prod_sum = np.zeros(len(aux_groups), dtype='float64')
         aux_square_sum = 0
         t0 = time()
         nfft = 0
@@ -111,13 +118,13 @@ class DataProcessing:
                                        window='hanning',
                                        nperseg=self.n_points)
                 aux_psd += psdtemp
-                aux_sum += np.sum(aux_data[i * self.n_points
-                                           : (i + 1) * self.n_points])
+                aux_sum += np.sum(aux_data[i * self.n_points:
+                                           (i + 1) * self.n_points])
                 aux_square_sum += np.sum(aux_data[i * self.n_points
-                                                  : (i + 1) * self.n_points]**2)
-                for (channel, band), k in zip(brms_bands,
-                                              xrange(len(brms_bands))):
-                    band_data = self.brms_data[channel][band][
+                                                  :(i + 1) * self.n_points]**2)
+                for (group, band), k in zip(brms_bands,
+                                            xrange(len(brms_bands))):
+                    band_data = self.group_dic[group]['brms_data'][band][
                                 start + i * self.n_points:
                                 start + (i + 1) * self.n_points]
 
@@ -134,14 +141,14 @@ class DataProcessing:
                     if nfft == 0:
                         h, x_edges, y_edges = np.histogram2d(
                             band_data,
-                            aux_data[i * self.n_points: (i + 1) * self.n_points],
-                            bins=self.nbins)
+                            aux_data[i * self.n_points:(i + 1) * self.n_points]
+                            , bins=self.nbins)
                         hist.append([h, x_edges, y_edges])
                     else:
                         h, x_edges, y_edges = np.histogram2d(
                             band_data,
-                            aux_data[i * self.n_points: (i + 1) * self.n_points],
-                            bins=[hist[k][1], hist[k][2]])
+                            aux_data[i * self.n_points:(i + 1) * self.n_points]
+                            , bins=[hist[k][1], hist[k][2]])
                         hist[k][0] += h
                 nfft += 1
             t1 = time()
@@ -155,11 +162,35 @@ class DataProcessing:
         prod_sum /= (nfft * self.n_points)
         self.aux_results[aux_channel] = {'brms_bands': brms_bands,
                                          'aux_psd': aux_psd,
-                                         'aux_sum': aux_sum,
-                                         'aux_square_sum': aux_square_sum,
-                                         'prod_sum': prod_sum,
+                                         'aux_mean': aux_sum,
+                                         'aux_square_mean': aux_square_sum,
+                                         'prod_mean': prod_sum,
                                          'csds': csds,
                                          'histogram': hist}
+
+    def coherence_computation(self):
+        for aux_name, aux_dict in self.aux_results.iteritems():
+            self.cohs[aux_name] = {}
+            brms_dict = aux_dict['brms_bands']
+            aux_psd = aux_dict['aux_psd']
+            for (channel, band), k in zip(brms_dict, len(brms_dict)):
+                csd = aux_dict['csds'][k]
+                band_psd = self.brms_psd[channel][band]
+                self.cohs[aux_name][channel + band] = (np.absolute(csd) ** 2) \
+                    / (band_psd * aux_psd)
+
+    def pearson_cohefficient_computation(self):
+        for aux_name, aux_dict in self.aux_results.iteritems():
+            self.ccfs[aux_name] = {}
+            brms_dict = aux_dict['brms_bands']
+            a_mn = aux_dict['aux_mean']
+            a_sq_mn = aux_dict['aux_square_mean']
+            for (channel, band), k in zip(brms_dict, len(brms_dict)):
+                p_mn = aux_dict['prod_mean'][k]
+                b_mn = self.brms_mean[channel][band]
+                b_sq_mn = self.brms_sqmean[channel][band]
+                self.ccfs[aux_name][channel + band] = (p_mn - b_mn * a_mn) \
+                    / np.sqrt((b_sq_mn - b_mn ** 2) * (a_sq_mn - a_mn ** 2))
 
     @TryFiveTimes
     def get_channel_data(self, data_source, channel, gpsb, gpse):

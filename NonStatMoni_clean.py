@@ -4,23 +4,19 @@
 
 import time
 import numpy as np
-import matplotlib
 
-matplotlib.use("TkAgg")
-import matplotlib.pyplot as plt
-
-import ConfigParser
-from optparse import OptionParser
+from argparse import ArgumentParser
 import markup
 from virgotools import gps2str
-
 import tables as tb
 import matplotlib.gridspec as grsp
-from functions import brms_reader, ipsh, get_channel_list, \
-    even_less_simple_cumulative_psd_csd_correlation
+from functions import brms_reader, ipsh, extractbands, Parameters
 import os
-# import mpld3
 import fnmatch
+from data_processing import DataProcessing
+import matplotlib
+matplotlib.use("TkAgg")
+import matplotlib.pyplot as plt
 
 start = time.time()
 # **************************** Initialization ******************************
@@ -32,12 +28,11 @@ pdir = 'plots/'
 
 style = 'general.css'
 tabstyle = 'table.css'
-source = '/virgoData/ffl/rds.ffl'
+source = ''
 # brmsfile = '/users/valentin/PycharmProjects/Long Spectra/psd statistics 1186876818 1187222418 cutfreq=4000 resolution=2.5/brms.hdf5'
 brmsfile = '/users/valentin/PycharmProjects/Long Spectra/psd statistics 1187913618 1187928018 cutfreq=4000 resolution=2.5/brms.hdf5'
 hdir = '/users/valentin/PycharmProjects/Nonstatmoni_reader/Results/{}/'.format(
     brmsfile.split('/')[-2])
-all_aux_channels = True
 
 try:
     os.mkdir(hdir)
@@ -49,90 +44,36 @@ except OSError:
     print 'Plots Directory already exists'
 
 
-def extractbands(bands, channel_bands):
-    b = bands.split(':')
-    B = channel_bands
-    for i in range(len(b) - 1):
-        B.append(b[i] + '_' + b[i + 1] + 'Hz')
-
-
 # set up configuration file
-class Parameters:
-    def __init__(self, initfile):
-        config = ConfigParser.ConfigParser()
-        config.read(initfile)
-        # DATA parameters
-        # self.trend = config.get('DATA', 'trend_data')
-        # self.nsm = config.get('DATA', 'nsm_data')
-
-        # GPS times
-        # self.gpsb = int(config.get('DATA', 'gpsb'))
-        # self.gpse = int(config.get('DATA', 'gpse'))
-
-        # Channels
-        self.nchannels = int(config.get('DATA', 'nchannels'))
-
-        self.channel = []
-        self.units = []
-        self.dt = []
-        self.bands = []
-        self.nav = []
-        self.coherences = []
-        self.excluded = config.get('DATA', 'exclude').split('\n')
-
-        for l in xrange(self.nchannels):
-            section = 'CHANNEL' + str(l + 1)
-            self.channel.append(config.get(section, 'channel'))
-            self.units.append(config.get(section, 'units'))
-            self.dt.append(config.get(section, 'dt'))
-            self.bands.append(config.get(section, 'bands'))
-            self.nav.append(int(config.get(section, 'naverages')))
-            self.coherences.append(
-                config.get(section, 'coherences').split('\n'))
 
 
 # read configuration options and process
-parser = OptionParser()
-parser.add_option("-i", "--init", dest="initialization",
-                  default='NonStatMoni.ini',
-                  help="set initialization FILE", metavar="FILE")
-# parser.add_option("-f", "--gpsb", dest="gpsb",
-#                   default='-1',
-#                   help="set starting GPS time", metavar="GPStime")
-# parser.add_option("-l", "--gpse", dest="gpse",
-#                   default='-1',
-#                   help="set final GPS time", metavar="GPStime")
-# parser.add_option("-s", "--span", dest="span",
-#                   default='-1',
-#                   help="set length of analysis from actual time",
-#                   metavar="GPStime")
-# parser.add_option("-L", "--last", dest="last",
-#                   default=False,
-#                   help="analyze last lock", action="store_true",
-#                   metavar="LastLock")
-parser.add_option("-d", "--dir", dest="hdir",
-                  default='',
-                  help="output directory",
-                  metavar="OutDir")
+parser = ArgumentParser()
+parser.add_argument("-i", "--init", dest="initialization",
+                    default='NonStatMoni.ini',
+                    help="set initialization FILE", metavar="cfgFILE")
+parser.add_argument("-b", "--brms", dest='brms_file"', default=brmsfile,
+                    help="set brms data file", metavar="brmsFILE")
+parser.add_argument("-d", "--dir", dest="hdir",
+                    help="output directory", metavar="OutDir")
 
 (opt, args) = parser.parse_args()
 par = Parameters(opt.initialization)
 
-if opt.hdir != '':
+# TODO: non e' piu' semplice semplicemente settare il default per opt.hdir?
+if opt.hdir:
     hdir = opt.hdir
 
 # ##### Loop over each channel ##############################
-meancoh = []
-ccf = []
-chbandsall = []
-channelsandbands = {}
-for channel, i in zip(par.channel, xrange(len(par.channel))):
-    channelsandbands[channel + '_' + str(i)] = []
-    channelsandbands[channel + '_' + str(i)] = []
-    extractbands(par.bands[i], channelsandbands[channel + '_' + str(i)])
-gpsb, gpse, fsample, segments, times, brms_data = brms_reader(brmsfile,
-                                                              channelsandbands)
+# Rebuild the band list as a list
+for group, g_dict in par.group_dict.iteritems():
+    extractbands(g_dict)
+# Read the BRMS data stored in the file.
+gpsb, gpse, fs, segments, times = brms_reader(opt.brms_file, par.group_dict)
+par.extract_aux_channels(gpsb)
+
 print "Analyzing lock between %d and %d" % (gpsb, gpse)
+# TODO: trasformo questo pezzetto in una funzione o perdo in leggibilita'?
 if max(times) <= 300:
     tunits = 's'
     t = times
@@ -143,36 +84,26 @@ if max(times) > (60 * 100):
     t = times / 3600
     tunits = 'h'
 
-if all_aux_channels:
-    chlist = get_channel_list(gpsb, source)
-    chmask = np.ones(len(chlist), dtype=bool)
-    for c, l in zip(chlist, xrange(len(chlist))):
-        for e in par.excluded:
-            if fnmatch.fnmatch(c, 'V1:' + e + '*'):
-                chmask[l] = False
-    for c in par.coherences:
-        c += chlist[chmask].tolist()
-    ipsh()
-
+ipsh()
 
 # TODO: - che cazzo e' dt, non fa niente!
-# TODO: - riNOMINARE CANALI IN "GRUPPI"
-# TODO: - ciclare sui gruppi solo per la generazione del report (gia fatto in real)
+
 # TODO: - capire come plottare timeseries e psd dei gruppi nella nuova struttura
-# TODO: - fare nuovi cicli sui canali ausiliari.
-# TODO: - usare la solita funzione di calcoli cumulativi al contrario,
-# TODo: - nel senso che ora il canale principale e' quello ausiliario e gli aux sono le bande
-# TODO: - ha senso avere gruppi diversi con aux diversi? FOrse e' piu' semplice pretendere una lista unica?
-
-# PLACEHOLDER DICTIONARY
-aux_table = {}
-
-for aux_channel, i in zip(aux_table, xrange(len(aux_table))):
 
 
 
-    # todo : ciclo sui gruppi o solo sui canali? forse e' meglio trasformare i gruppi in una sovrastruttura tipo una mask
 
+processor = DataProcessing(segments, fs, par.nav, par.group_dict, times)
+processor.cumulative_psd_computation()
+for (aux_name, aux_groups), i in zip(par.aux_dict.iteritems(),
+                                     xrange(len(par.aux_dict))):
+    processor.auxillary_psd_csd_correlation(aux_name, aux_groups,
+                                            par.aux_source)
+
+processor.pearson_cohefficient_computation()
+processor.coherence_computation()
+
+ipsh()
 
 for channel, units, dt, nav, cohe, nchan in zip(par.channel, par.units, par.dt,
                                                 par.nav,
@@ -203,9 +134,8 @@ for channel, units, dt, nav, cohe, nchan in zip(par.channel, par.units, par.dt,
         nchan) + '_' + dt + 's_' + bmin + '_' + bmax + 'Hz_time.png')
     plt.close()
     # ####### Compute and plot spectra
-    N = len(band_data.values()[
-                0])  # all bands should have the same length, according to 9 out of 10 statisticians
-    NFFT = int(pow(2, np.floor(np.log((2 * N) / (nav + 1)) / np.log(2))))
+ # all bands should have the same length, according to 9 out of 10 statisticians
+
     sp = []
     cohs = []
     ccfs = []
@@ -223,15 +153,6 @@ for channel, units, dt, nav, cohe, nchan in zip(par.channel, par.units, par.dt,
         histograms.append([])
     data_storage = None
     for y in band_data.itervalues():
-        if not data_storage:
-            s1, s2, csds, mean_1, square_mean_1, aux_means, square_aux_means, prod_means, f, hist, data_storage = even_less_simple_cumulative_psd_csd_correlation(
-                y - np.mean(y), times, cohe, NFFT, segments, fsample, source,
-                nbins=150)
-        else:
-            s1, s2, csds, mean_1, square_mean_1, aux_means, square_aux_means, prod_means, f, hist, _ = even_less_simple_cumulative_psd_csd_correlation(
-                y - np.mean(y), times, cohe, NFFT, segments, fsample, source,
-                nbins=150, data_storage=data_storage)
-        sp.append(s1)
         for psd, csd, aux_mean, square_aux_mean, prod_mean, h, k in zip(s2,
                                                                         csds,
                                                                         aux_means,
@@ -255,7 +176,7 @@ for channel, units, dt, nav, cohe, nchan in zip(par.channel, par.units, par.dt,
             print "Issue in plotting psd of channel {0} {1}, may there be no positive data?".format(
                 channel, s)
     plt.axis(xmax=0.5)
-    plt.axis(xmin=1 / (2 * NFFT))
+    plt.axis(xmin=1 / (2 * processor.n_points))
     plt.grid(True)
     plt.xlabel('Frequency [Hz]')
     plt.ylabel('Spectrum of normalized BRMS [' + units + '/rHz/rHz]')
@@ -312,7 +233,7 @@ for channel, units, dt, nav, cohe, nchan in zip(par.channel, par.units, par.dt,
             try:
                 ax1.semilogx(f, c, linewidth=0.5)
                 ax1.axis(ymin=0, ymax=1)
-                ax1.axis(xmin=1 / (2 * NFFT))
+                ax1.axis(xmin=1 / (2 * processor.n_points))
                 ax1.grid(True)
                 ax1.set_xlabel('Frequency [Hz]')
                 ax1.set_ylabel('Coherence')

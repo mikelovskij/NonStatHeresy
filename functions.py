@@ -7,6 +7,8 @@ import numpy as np
 import virgotools as vrg
 from time import time, ctime
 import scipy.signal as sig
+import ConfigParser
+import fnmatch
 
 
 # ipshell debugger during run
@@ -22,23 +24,81 @@ def ipsh():
     ipshell(msg, stack_depth=2)
 
 
-def brms_reader(file, channelsandbands):
-    with h5py.File(file, 'r') as f:
-        brms_data = {}
+class Parameters:
+    def __init__(self, initfile):
+        cfg = ConfigParser.ConfigParser(
+            {'aux_channel_source': '/virgoData/ffl/rds.ffl'},
+            allow_no_value=True)
+        cfg.read(initfile)
+
+        self.aux_source = cfg.get('GENERAL', 'aux_channel_source')
+        self.n_groups = cfg.getint('GENERAL', 'n_groups')
+        self.all_aux = cfg.getboolean('GENERAL', 'all_aux')
+        self.aux = cfg.get('GENERAL', 'aux_channels').split('\n')
+        self.excluded = cfg.get('GENERAL', 'exclude').split('\n')
+        self.nav = cfg.getint('GENERAL', 'averages')
+        self.group_dict = {}
+        self.aux_dict = {}
+        for group_n in xrange(self.n_groups):
+            section = 'GROUP' + str(group_n + 1)
+            self.group_dict[section] = {'channel': cfg.get(section, 'channel'),
+                                        'units': cfg.get(section, 'units'),
+                                        'bands': cfg.get(section, 'bands'),
+                                        'aux': cfg.get(section, 'aux_channels').split('\n'),
+                                        'excl': cfg.get(section, 'exclusions').split('\n')
+                                        }
+
+    def extract_aux_channels(self, gpsb):
+        if self.all_aux:
+            chlist = get_channel_list(gpsb, self.aux_source)
+            for aux_name in chlist:
+                self.aux_dict[aux_name] = set(self.group_dict.keys())
+        for excl_name in self.excluded:
+            try:
+                del(self.aux_dict[excl_name])
+            except KeyError:
+                for aux_name in self.aux_dict.iterkeys():
+                    if fnmatch.fnmatch(aux_name, 'V1:' + excl_name + '*'):
+                        self.excluded.append(aux_name)
+        for aux_name in self.aux:
+            self.aux_dict[aux_name] = set(self.group_dict.keys())
+        for group_name, dic in self.group_dict.iteritems():
+            for excl_name in dic['excl']:
+                try:
+                    self.aux_dict[excl_name].remove(group_name)
+                except KeyError:
+                    for aux_name in self.aux_dict.iterkeys():
+                        if fnmatch.fnmatch(aux_name, 'V1:' + excl_name + '*'):
+                            try:
+                                self.aux_dict[aux_name].remove(group_name)
+                            except KeyError:
+                                pass
+            for aux_name in dic['aux']:
+                try:
+                    self.aux_dict[aux_name].add(group_name)
+                except KeyError:
+                    self.aux_dict[aux_name] = {group_name}
+
+
+def extractbands(g_dict):
+    g_dict['band_list'] = []
+    b = g_dict['bands'].split(':')
+    for i in range(len(b) - 1):
+        g_dict['band_list'].append(b[i] + '_' + b[i + 1] + 'Hz')
+
+
+def brms_reader(file_name, group_dict):
+    with h5py.File(file_name, 'r') as f:
         [gpsb, gpse] = f.attrs['gps']
-        fsample = f.attrs['fsample']
+        sampling_f = f.attrs['fsample']
         segments = f.attrs['segments']
-        for (channel, bands) in channelsandbands.iteritems():
-            brms_data[channel] = {}
-            real_channel = ''
-            split_channel = channel.split('_')
-            for s in split_channel[0:-2]:
-                real_channel += (s + '_')
-            real_channel += split_channel[-2]
-            times = f[real_channel]['times'][:]
-            for b in bands:
-                brms_data[channel][b] = f[real_channel][b][:]
-    return gpsb, gpse, fsample, segments, times, brms_data
+        for (group, g_dic) in group_dict.iteritems():
+            g_dic['brms_data'] = {}
+            channel = g_dic['channel']
+            times = f[channel]['times'][:]
+            for band in g_dic['band_list']:
+                g_dic['brms_data'][band] = f[channel][band][:]
+    return gpsb, gpse, sampling_f, segments, times
 
 
 # come gestisco la segmentazione dei dati? Per come funziona al momento il calcolatore di psd, perdo l'effettiva corrispondenza temporale
@@ -424,104 +484,3 @@ def get_channel_list(gpsb, source):
                 if int(adc.contents.sampleRate) == 50:
                     channels.append(str(adc.contents.name))
     return np.array(channels)
-
-
-def cumulative_psd_csd_correlation(main_data, main_times,
-                                                    auxchannels, n_points,
-                                                    segments, downfreq,
-                                                    data_source,
-                                                    nbins, data_storage=None):
-    s1 = np.zeros((int(n_points / 2) + 1), dtype='float64')
-    freqs = np.zeros((int(n_points / 2) + 1), dtype='float64')
-    s2 = np.zeros((len(auxchannels), int(n_points / 2) + 1), dtype='float64')
-    csd = np.zeros((len(auxchannels), int(n_points / 2) + 1),
-                   dtype='complex128')
-    sum_1 = 0
-    square_sum_1 = 0
-    aux_sum = np.zeros(len(auxchannels), dtype='float64')
-    prod_sum = np.zeros(len(auxchannels), dtype='float64')
-    square_aux_sum = np.zeros(len(auxchannels), dtype='float64')
-    t0 = time()
-    nfft = 0
-    nsegments = len(segments)
-    hist = []
-    acquire = False
-    if not data_storage:
-        acquire = True
-        data_storage = {}
-        for ch in auxchannels:
-            data_storage[ch] = []
-    for ((gpsb, gpse), j) in zip(segments, xrange(nsegments)):
-        print 'Data acquisition and fft computation in progress, step {0} of {1} ...'.format(
-            j, nsegments)
-        fftperacquisition = int(np.floor((gpse - gpsb) * downfreq / n_points))
-        start = np.argmin(abs(main_times - gpsb))
-        end = np.argmin(abs(main_times - gpse))
-        c = main_data[start:end]
-        for ch, k in zip(auxchannels, xrange(len(auxchannels))):
-            attempts = 0
-            if acquire:
-                while attempts < 5:
-                    try:
-                        with vrg.getChannel(data_source, ch, gpsb,
-                                            gpse - gpsb) as ch2:
-                            c_data = decimator_wrapper(downfreq, ch2)
-                            data_storage[ch].append(c_data)
-                            c2 = c_data
-                        break
-                    except IOError, e:
-                        attempts += 1
-                        print e
-                        if attempts == 5:
-                            raise
-            else:
-                c2 = data_storage[ch][j]
-            for i in xrange(fftperacquisition):
-                if k == 0:
-                    freqs, s1temp = sig.welch(
-                        c[i * n_points: (i + 1) * n_points], fs=downfreq,
-                        window='hanning', nperseg=n_points)
-                    s1 += s1temp
-                    sum_1 += np.sum(c[i * n_points: (i + 1) * n_points])
-                    square_sum_1 += np.sum(
-                        c[i * n_points: (i + 1) * n_points] ** 2)
-                # for (c2, k) in zip(caux, xrange(len(caux))):
-                _, csdtemp = sig.csd(c[i * n_points: (i + 1) * n_points],
-                                     c2[i * n_points: (i + 1) * n_points],
-                                     fs=downfreq,
-                                     window='hanning', nperseg=n_points)
-                _, s2temp = sig.welch(c2[i * n_points: (i + 1) * n_points],
-                                      fs=downfreq,
-                                      window='hanning', nperseg=n_points)
-                s2[k] += s2temp
-                csd[k] += csdtemp
-                aux_sum[k] += np.sum(c2[i * n_points: (i + 1) * n_points])
-                square_aux_sum[k] += np.sum(
-                    c2[i * n_points: (i + 1) * n_points] ** 2)
-                prod_sum[k] += np.sum(c2[i * n_points: (i + 1) * n_points] * c[
-                                                                             i * n_points: (
-                                                                                               i + 1) * n_points])
-                # TODO: maybe calculating the histogram for every band and for every aux channel is a bit too expensive?
-                if (i == 0) and (j == 0):
-                    h, x_edges, y_edges = np.histogram2d(
-                        c[i * n_points: (i + 1) * n_points],
-                        c2[i * n_points: (i + 1) * n_points],
-                        bins=nbins)
-                    hist.append([h, x_edges, y_edges])
-                else:
-                    h, x_edges, y_edges = np.histogram2d(
-                        c[i * n_points: (i + 1) * n_points],
-                        c2[i * n_points: (i + 1) * n_points],
-                        bins=[hist[k][1], hist[k][2]])
-                    hist[k][0] += h
-                if k == 0:
-                    nfft += 1
-        t1 = time()
-        tend = (t1 - t0) / (j + 1) * (nsegments - j)
-        print 'Estimated completion {0}, in {1:.2f} minutes'.format(
-            ctime(t1 + tend), (tend / 60))
-    return s1 / nfft, s2 / nfft, csd / nfft, sum_1 / (
-        nfft * n_points), square_sum_1 / (nfft * n_points), aux_sum / (
-               nfft * n_points), square_aux_sum / (
-           nfft * n_points), prod_sum / (
-               nfft * n_points), freqs, hist, data_storage

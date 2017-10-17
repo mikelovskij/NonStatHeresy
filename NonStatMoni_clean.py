@@ -57,19 +57,19 @@ parser.add_argument("-b", "--brms", dest='brms_file"', default=brmsfile,
 parser.add_argument("-d", "--dir", dest="hdir",
                     help="output directory", metavar="OutDir")
 
-(opt, args) = parser.parse_args()
-par = Parameters(opt.initialization)
+args = parser.parse_args()
+par = Parameters(args.initialization)
 
 # TODO: non e' piu' semplice semplicemente settare il default per opt.hdir?
-if opt.hdir:
-    hdir = opt.hdir
+if args.hdir:
+    hdir = args.hdir
 
 # ##### Loop over each channel ##############################
 # Rebuild the band list as a list
 for group, g_dict in par.group_dict.iteritems():
     extractbands(g_dict)
 # Read the BRMS data stored in the file.
-gpsb, gpse, fs, segments, times = brms_reader(opt.brms_file, par.group_dict)
+gpsb, gpse, fs, segments, times = brms_reader(args.brms_file, par.group_dict)
 par.extract_aux_channels(gpsb)
 
 print "Analyzing lock between %d and %d" % (gpsb, gpse)

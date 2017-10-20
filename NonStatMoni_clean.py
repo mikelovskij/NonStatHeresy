@@ -108,7 +108,6 @@ for (aux_name, aux_groups), i in zip(par.aux_dict.iteritems(),
 proc.pearson_cohefficient_computation()
 proc.coherence_computation()
 
-ipsh()
 
 # for channel, units, dt, nav, cohe, nchan in zip(par.channel, par.units, par.dt,
 #                                                par.nav,
@@ -123,8 +122,8 @@ for group, g_dict in par.group_dict.iteritems():
     # ####### Plot time series
     fig = plt.figure(figsize=(10, 6))
     plt.axes([0.1, 0.1, 0.65, 0.8])
-    for band_name, band_data in band_data.iteritems():
-        plt.semilogy(t[::50], band_data[::50], linewidth=0.5, label=band_name)
+    for band_name, data in band_data.iteritems():
+        plt.semilogy(t[::50], data[::50], linewidth=0.5, label=band_name)
     plt.grid(True)
     plt.axis(xmax=max(t))
     plt.xlabel('Time [' + tunits + ']')
@@ -167,63 +166,70 @@ for group, g_dict in par.group_dict.iteritems():
             hi_coh = []
             # plotting every coherence is probably too much.
             #  fo una cosa tipo coherence?
-            for band_name, band_data, j in zip(band_data.iteritems(),
+            for (band_name, data), j in zip(band_data.iteritems(),
                                                xrange(len(band_data.items()))):
-                ccf = proc.ccfs[aux_name][g_dict['channel'] + band_name]
+                ccf = proc.ccfs[aux_name][group + '_' + band_name]
                 mean_coh = proc.mean_cohs[aux_name][
-                    g_dict['channel'] + band_name]
+                    group + '_' + band_name]
                 # TODO: surely some distributions can give a significance estimate of the corrcoef
                 if abs(ccf) >= 0.15:
                     # hicorrlist.append(hist[j])
                     hi_corr.append((band_name, j))
-                if np.mean(mean_coh) >= 0.15:
+                if np.mean(mean_coh) >= 0.03:
                     # hichlist
                     hi_coh.append((band_name, j))
 
-            plt.figure(figsize=(15, 6))
-            # axes([0.1, 0.1, 0.65, 0.8])
-            if len(hi_corr) > 0:
-                n_rows = int(np.floor(np.sqrt(len(hi_corr))))
-                n_cols = int(np.ceil(np.sqrt(len(hi_corr))))
-                gs = grsp.GridSpec(n_cols, 2 * n_rows)
-                gs.update(wspace=0.2, hspace=0.5)
-                for j in xrange(n_cols):
-                    for k, (band_name, band_num) in zip(xrange(n_rows),
-                                                        hi_corr[
-                                                        n_rows * j:n_rows * (
-                                                            j + 1)]):
-                        h = proc.aux_results[aux_name]['histogram'][band_num]
-                        ax = plt.subplot(gs[j, n_rows + k])
-                        a = ax.pcolormesh(h[1], h[2], h[0])
-                        ax.tick_params(axis='both', which='minor', labelsize=6)
-                        ax.tick_params(axis='both', which='major', labelsize=6)
-                        ax.ticklabel_format(style="sci", scilimits=(0, 0),
-                                            axis="both")
-                        plt.title(band_name)
-                ax1 = plt.subplot(gs[0:n_cols, 0:n_rows])
+            if (len(hi_corr) + len(hi_coh)) > 0:
+                plt.figure(figsize=(15, 6))
+                # axes([0.1, 0.1, 0.65, 0.8])
+                if len(hi_corr) > 0:
+                    n_rows = int(np.floor(np.sqrt(len(hi_corr))))
+                    n_cols = int(np.ceil(np.sqrt(len(hi_corr))))
+                    gs = grsp.GridSpec(n_cols, 2 * n_rows)
+                    gs.update(wspace=0.2, hspace=0.5)
+                    for j in xrange(n_cols):
+                        for k, (band_name, band_num) in zip(xrange(n_rows),
+                                                            hi_corr[
+                                                            n_rows * j:n_rows * (
+                                                                j + 1)]):
+                            h = proc.aux_results[aux_name]['histogram'][band_num]
+                            ax = plt.subplot(gs[j, n_rows + k])
+                            a = ax.pcolormesh(h[1], h[2], h[0])
+                            ax.tick_params(axis='both', which='minor', labelsize=6)
+                            ax.tick_params(axis='both', which='major', labelsize=6)
+                            ax.ticklabel_format(style="sci", scilimits=(0, 0),
+                                                axis="both")
+                            plt.title(band_name)
+                    ax1 = plt.subplot(gs[0:n_cols, 0:n_rows])
 
+                else:
+                    ax1 = plt.subplot2grid((1, 1), (0, 0))
+                for (band_name, band_num) in hi_coh:
+                    try:
+                        coh = proc.cohs[aux_name][group + '_' + band_name]
+                        ax1.semilogx(proc.freqs, coh, linewidth=0.5,
+                                     label=band_name)
+                        ax1.axis(ymin=0, ymax=1)
+                        ax1.axis(xmin=1 / (2 * proc.n_points))
+                        ax1.grid(True)
+                        ax1.set_xlabel('Frequency [Hz]')
+                        ax1.set_ylabel('Coherence')
+                        ax1.legend(loc=(1.02, 0.2))
+                    except ValueError:
+                        print "Issue in plotting cpherence of channel {0} _ {1}" \
+                              ", could there be no positive data?" \
+                            .format(g_dict['channel'], band_name)
+                ax1.set_title('Coherence with {}, {:d} - {:d}'.
+                              format(g_dict['channel'], gpsb, gpse))
+                plt.savefig(
+                    hdir + pdir + group + '_' + 'cohe_' + aux_name + '.png')
+                plt.close()
             else:
-                ax1 = plt.subplot2grid((1, 1), (0, 0))
-            for (band_name, band_num) in hi_coh:
                 try:
-                    coh = proc.cohs[aux_name][g_dict['channel'] + band_name]
-                    ax1.semilogx(proc.freqs, coh, linewidth=0.5,
-                                 label=band_name)
-                    ax1.axis(ymin=0, ymax=1)
-                    ax1.axis(xmin=1 / (2 * proc.n_points))
-                    ax1.grid(True)
-                    ax1.set_xlabel('Frequency [Hz]')
-                    ax1.set_ylabel('Coherence')
-                    ax1.legend(loc=(1.02, 0.2))
-                except ValueError:
-                    print "Issue in plotting cpherence of channel {0} _ {1}" \
-                          ", could there be no positive data?" \
-                        .format(g_dict['channel'], band_name)
-            ax1.title('Coherence with {}, {:d} - {:d}'.
-                      format(g_dict['channel'], gpsb, gpse))
-            plt.savefig(
-                hdir + pdir + group + '_' + 'cohe_' + aux_name + '.png')
-            plt.close()
+                    os.remove(hdir + pdir + group + '_' + 'cohe_' + aux_name + '.png')
+                except:
+                    pass
+
 
 # ##### Create summary web page ##############################################
 print "Generating Web Page..."
@@ -235,8 +241,8 @@ page.script.close()
 page.a(name="top")
 
 # brms summary table generation
-ch = [par.channel[0]]
-num = 0
+#ch = [par.channel[0]]
+#num = 0
 # chnum = []
 # # obtain an unique channel list, and a vector containing how many times each channel is repeated
 # # works only if channels are listed "in order"
@@ -290,11 +296,11 @@ for aux_name, aux_groups in par.aux_dict.iteritems():
                                          key=lambda x: x[1], reverse=True))
 
     for chan_band, ccf in ccf_sorted.items()[0:4]:
-        pagename = 'cohe_{}_Hz.html'.format(chan_band)
+        pagename = 'cohe_{}.html'.format(chan_band.split('_')[0])
         page.td(style="width:10%; font-size :11px;")
 
-        page.add("<a target=_blank href={}{}>{}</a><br>(ccf={:3f})"
-                 .format(hdir.replace(' ', '%20'), pagename, chan_band, ccf))
+        page.add("<a target=_blank href={}>{}</a><br>(ccf={:3f})"
+                 .format( pagename, chan_band, ccf))
         page.td.close()
 
     page.td()
@@ -302,7 +308,7 @@ for aux_name, aux_groups in par.aux_dict.iteritems():
     page.td.close()
 
     for chan_band, coh in mean_coh_sorted.items()[0:4]:
-        pagename = 'cohe_{}_Hz.html'.format(chan_band)
+        pagename = 'cohe_{}.html'.format(chan_band.split('_')[0])
         page.td(style="width:10%; font-size:11px;")
         page.add('<a target=_blank href={}/{}>{}</a><br>(mncoh={:3f})'
                  .format(hdir.replace(' ', '%20'), pagename, chan_band, coh))
@@ -329,17 +335,17 @@ for group, g_dict in par.group_dict.iteritems():
     for aux_name, aux_groups in par.aux_dict.iteritems():
         if group in aux_groups:
             for band in g_dict['band_list']:
-                ccf = proc.ccfs[aux_name][g_dict['channel'] + band]
+                ccf = proc.ccfs[aux_name][group + '_' + band]
                 if abs(ccf) > min(np.abs(ccftab)):
                     ccftab = np.concatenate((ccftab, [ccf]))
-                    ccftab_names = np.concatenate((ccftab_names, aux_name))
+                    ccftab_names = np.concatenate((ccftab_names, [aux_name]))
                     best_indexes = np.abs(ccftab).argsort()[1:][::-1]
                     ccftab = ccftab[best_indexes]
                     ccftab_names = ccftab_names[best_indexes]
-                coh = proc.mean_cohs[aux_name][g_dict['channel'] + band]
+                coh = proc.mean_cohs[aux_name][group + '_' + band]
                 if coh > min(cohtab):
                     cohtab = np.concatenate((cohtab, [coh]))
-                    cohtab_names = np.concatenate((cohtab_names, aux_name))
+                    cohtab_names = np.concatenate((cohtab_names, [aux_name]))
                     best_indexes = cohtab.argsort()[1:][::-1]
                     cohtab = cohtab[best_indexes]
                     cohtab_names = cohtab_names[best_indexes]
@@ -362,7 +368,7 @@ for group, g_dict in par.group_dict.iteritems():
              "_time.png\" /></div><div>" + tabstr + "</div>")
 
     page.h2("Spectrum of BRMS time series")
-    page.img(src=(pdir + group + '_' + '_psd.png'), alt="Plots")
+    page.img(src=(pdir + group + '_psd.png'), alt="Plots")
     page.h2("<a href=#top> ^ Top ^ </a> ")
     # create coherence subpage
     page2 = markup.page()
@@ -371,7 +377,7 @@ for group, g_dict in par.group_dict.iteritems():
     for aux_name, aux_groups in par.aux_dict.iteritems():
         if group in aux_groups:
             page2.img(src=(pdir + group + '_' + 'cohe_' + aux_name + '.png'),
-                      alt="Plots")
+                      alt=(" No plots for" + aux_name))
     pagename = 'cohe_{}.html'.format(group)
     page2.savehtml(hdir + pagename)
     page.h2("<a target=_blank href=" + hdir.replace(' ', '%20') +

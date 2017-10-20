@@ -90,8 +90,8 @@ class DataProcessing:
                                  start + (i + 1) * self.n_points] ** 2)
                         n_fft += 1
                 self.brms_psd[group][band] /= n_fft
-                self.brms_mean[group][band] /= n_fft
-                self.brms_sqmean[group][band] /= n_fft
+                self.brms_mean[group][band] /= (n_fft * self.n_points)
+                self.brms_sqmean[group][band] /= (n_fft * self.n_points)
 
     def auxillary_psd_csd_correlation(self, aux_channel, aux_groups,
                                       data_source):
@@ -177,12 +177,12 @@ class DataProcessing:
             self.mean_cohs[aux_name] = {}
             brms_dict = aux_dict['brms_bands']
             aux_psd = aux_dict['aux_psd']
-            for (channel, band), k in zip(brms_dict, len(brms_dict)):
+            for (group, band), k in zip(brms_dict, xrange(len(brms_dict))):
                 csd = aux_dict['csds'][k]
-                band_psd = self.brms_psd[channel][band]
-                self.cohs[aux_name][channel + band] = (np.absolute(csd) ** 2) \
+                band_psd = self.brms_psd[group][band]
+                self.cohs[aux_name][group + '_' + band] = (np.absolute(csd) ** 2) \
                     / (band_psd * aux_psd)
-                self.mean_cohs[aux_name][channel + band] = np.mean(self.cohs[aux_name][channel + band])
+                self.mean_cohs[aux_name][group + '_' + band] = np.mean(self.cohs[aux_name][group + '_' + band])
 
     def pearson_cohefficient_computation(self):
         for aux_name, aux_dict in self.aux_results.iteritems():
@@ -190,11 +190,11 @@ class DataProcessing:
             brms_dict = aux_dict['brms_bands']
             a_mn = aux_dict['aux_mean']
             a_sq_mn = aux_dict['aux_square_mean']
-            for (channel, band), k in zip(brms_dict, len(brms_dict)):
+            for (group, band), k in zip(brms_dict, xrange(len(brms_dict))):
                 p_mn = aux_dict['prod_mean'][k]
-                b_mn = self.brms_mean[channel][band]
-                b_sq_mn = self.brms_sqmean[channel][band]
-                self.ccfs[aux_name][channel + band] = (p_mn - b_mn * a_mn) \
+                b_mn = self.brms_mean[group][band]
+                b_sq_mn = self.brms_sqmean[group][band]
+                self.ccfs[aux_name][group + '_' + band] = (p_mn - b_mn * a_mn) \
                     / np.sqrt((b_sq_mn - b_mn ** 2) * (a_sq_mn - a_mn ** 2))
 
     @tryfivetimes

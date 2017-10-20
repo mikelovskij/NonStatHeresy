@@ -21,6 +21,7 @@ class DataProcessing:
         self.aux_results = {}
         self.cohs = {}
         self.ccfs = {}
+        self.mean_cohs = {}
         # Rice estimator for nbins
         estimated_points = 0
         for seg in self.segments:
@@ -173,6 +174,7 @@ class DataProcessing:
     def coherence_computation(self):
         for aux_name, aux_dict in self.aux_results.iteritems():
             self.cohs[aux_name] = {}
+            self.mean_cohs[aux_name] = {}
             brms_dict = aux_dict['brms_bands']
             aux_psd = aux_dict['aux_psd']
             for (channel, band), k in zip(brms_dict, len(brms_dict)):
@@ -180,6 +182,7 @@ class DataProcessing:
                 band_psd = self.brms_psd[channel][band]
                 self.cohs[aux_name][channel + band] = (np.absolute(csd) ** 2) \
                     / (band_psd * aux_psd)
+                self.mean_cohs[aux_name][channel + band] = np.mean(self.cohs[aux_name][channel + band])
 
     def pearson_cohefficient_computation(self):
         for aux_name, aux_dict in self.aux_results.iteritems():

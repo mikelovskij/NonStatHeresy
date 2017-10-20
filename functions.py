@@ -5,7 +5,7 @@ import inspect
 from IPython.terminal.embed import InteractiveShellEmbed
 import numpy as np
 import virgotools as vrg
-from time import time, ctime
+from time import time, ctime, sleep
 import scipy.signal as sig
 import ConfigParser
 import fnmatch
@@ -91,10 +91,12 @@ def tryfivetimes(f):
             except (IOError, vrg.frame_lib.ChannelNotFound) as e:
                 attempts += 1
                 print e
+                sleep(3)
                 if attempts == 5:
                     raise
         return out
     return wrapper
+
 
 def extractbands(g_dict):
     g_dict['band_list'] = []

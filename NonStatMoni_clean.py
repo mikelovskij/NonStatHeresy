@@ -241,12 +241,13 @@ page.init(title="NonStatMoni", css=(style, tabstyle, modalstyle),
 page.script(src="scripts.js")
 page.script.close()
 
-page.input(type="text", id="myInput", onkeyup="myFunction()",
-           placeholder="Search for aux_channel names..")
+
 # best coherences and ccfs summary table generation
 
 page.button("Auxillary channels summary table", class_="accordion")
-page.div(class_="panel").open()
+page.div(class_="panel")
+page.input(type="text", id="myInput", onkeyup="myFunction()",
+           placeholder="Search for aux_channel names..")
 page.table(id="t01")
 for aux_name, aux_groups in par.aux_dict.iteritems():
     page.tr()

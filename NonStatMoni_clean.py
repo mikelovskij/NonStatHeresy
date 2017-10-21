@@ -7,6 +7,7 @@ import numpy as np
 
 from argparse import ArgumentParser
 import markup
+from markup import oneliner as ol
 from virgotools import gps2str
 import tables as tb
 import matplotlib.gridspec as grsp
@@ -317,16 +318,20 @@ for aux_name, aux_groups in par.aux_dict.iteritems():
     page.tr.close()
 page.table.close()
 
-# rest of the page generation
-# for (channel, dt, cohe, nchan) in zip(par.channel, par.dt, par.coherences,
-#                                      xrange(len(par.channel))):
+
+# build the page menu
+onclick_gen = ("openGroup(event, '{}')".format(group)
+               for group in par.group_dict.keys())
+page.div(ol.button(par.group_dict.keys(), class_='tablinks',
+                   onclick=onclick_gen), class_='tab')
+
+# build each group subpage
 for group, g_dict in par.group_dict.iteritems():
     # bands = channelsandbands[channel + '_' + str(nchan)]
     # bmin = bands[0].split('_')[0]
     # bmax = bands[-1].split('_')[1].split('Hz')[0]
 
-    page.h1("NonStatMoni BRMS for " + g_dict['channel'] + " GPS %d - %d"
-            % (gpsb, gpse))
+
     # Generate list of best coherences and ccf for each group
     ccftab = np.zeros(ntop)
     cohtab = np.zeros(ntop)
@@ -350,26 +355,31 @@ for group, g_dict in par.group_dict.iteritems():
                     cohtab = cohtab[best_indexes]
                     cohtab_names = cohtab_names[best_indexes]
 
-    page.h2("Normalized BRMS time series")
-    # chbands = channel + bmin + '_' + bmax
-    page.a(name=group + ': channel ' + g_dict['channel'])
-    page.a("Top", href="#top")
-    tab = []
-    row_0 = [" CCF ", "Coherence"]
-    tab.append(row_0)
+    frame = ol.h1("NonStatMoni BRMS for {} GPS {:d} - {:d}".format(
+                  g_dict['channel'], gpsb, gpse))
+    frame += ol.h2("Normalized BRMS time series")
+    # todo: normalized by what?
+    frame += ol.a(name=group + ': channel ' + g_dict['channel'])
+    frame += ol.a("Top", href="#top")
+    # Build the highest ccf and coherence table
+    tab = [[" CCF ", "Coherence"]]
     for i in xrange(ntop):
         row = [
             "{0}<br>Highest CCFs = {1}".format(ccftab_names[i], ccftab[i]),
             "{0}<br>Highest Coher. = {1}".format(cohtab_names[i], cohtab[i])]
         tab.append(row)
     tabstr = tb.tabmaker(tab, True, False)
+    frame += ol.div(ol.img(src=pdir + group + "_time.png"), style="float:left")
+    frame += ol.div(tabstr)
 
-    page.div("<div style=\"float:left\"><img src=\"" + pdir + group +
-             "_time.png\" /></div><div>" + tabstr + "</div>")
+    #page.div("<div style=\"float:left\"><img src=\"" + pdir + group +
+    #        "_time.png\" /></div><div>" + tabstr + "</div>")
 
-    page.h2("Spectrum of BRMS time series")
-    page.img(src=(pdir + group + '_psd.png'), alt="Plots")
-    page.h2("<a href=#top> ^ Top ^ </a> ")
+    frame += ol.h2("Spectrum of BRMS time series")
+    frame += ol.img(src=(pdir + group + '_psd.png'), alt="Plots")
+    frame += ol.h2("<a href=#top> ^ Top ^ </a> ")
+    page.div(frame, id=group, class_='tabcontent')
+
     # create coherence subpage
     page2 = markup.page()
     page2.init(title="NonStatMoni", css='../style/style.css')

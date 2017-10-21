@@ -31,6 +31,7 @@ pdir = 'plots/'
 style = 'general.css'
 tabstyle = 'table.css'
 modalstyle = 'modal.css'
+script = 'script.js'
 source = ''
 # brmsfile = '/users/valentin/PycharmProjects/Long Spectra/psd statistics 1186876818 1187222418 cutfreq=4000 resolution=2.5/brms.hdf5'
 brmsfile = '/users/valentin/PycharmProjects/Long Spectra/psd statistics 1187913618 1187928018 cutfreq=4000 resolution=2.5/brms.hdf5'
@@ -237,10 +238,8 @@ print "Generating Web Page..."
 page = markup.page()
 page.init(title="NonStatMoni", css=(style, tabstyle, modalstyle),
           footer="(2017)" +
-                 ol.a("Michele Valentini", href='mailto:snao20@hotmail.com'))
-page.script(src="scripts.js")
-page.script.close()
-
+                 ol.a("Michele Valentini", href='mailto:snao20@hotmail.com'),
+          script={script: 'javascript'})
 
 # best coherences and ccfs summary table generation
 
@@ -318,7 +317,7 @@ for group, g_dict in par.group_dict.iteritems():
     for i in xrange(ntop):
         row = [
             "{0}<br>Highest CCFs = {1}".format(ccftab_names[i], ccftab[i]),
-            "{0}<br>Highest Coher. = {1}".format(cohtab_names[i], cohtab[i])]
+            "{0}<br>Mean Coher. = {1}".format(cohtab_names[i], cohtab[i])]
         tab.append(row)
     tabstr = tb.tabmaker(tab, True, False)
 
@@ -327,25 +326,17 @@ for group, g_dict in par.group_dict.iteritems():
                   g_dict['channel'], gpsb, gpse))
     frame += ol.h2("Normalized BRMS time series")
     # todo: normalized by what?
-    frame += ol.a(name=group + ': channel ' + g_dict['channel'])
-    img = ol.img(id="myImg", src=pdir + group + "_time.png",
-                 alt=group + "Time plot", width="300", height="200")
+    img = ol.img(class_="myImg", src=pdir + group + "_time.png",
+                 alt=group + "Time plot", width="400")
     frame += ol.div(img, style="float:left")
     frame += ol.div(tabstr)
     frame += ol.h2("Spectrum of BRMS time series")
-    frame += ol.img(id="myImg", src=pdir + group + "_psd.png",
-                    alt=group + "PSD plot", width="300", height="200")
+    frame += ol.img(class_="myImg", src=pdir + group + "_psd.png",
+                    alt=group + "PSD plot", width="400")
     cohe_page_name = 'cohe_{}.html'.format(group)
     frame += ol.h2(ol.a("Coherences with slow channels", target='_blank',
                         href=cohe_page_name))
     page.div(frame, id=group, class_='tabcontent')
-
-    # create the modal for the plot images
-
-    modal = ol.span("&time;", class_="close")
-    modal += ol.img(class_="modal-content", id="img01")
-    modal += ol.div(id="caption")
-    page.div(modal, id='myModal', class_="modal")
 
     # create coherence subpage
     page2 = markup.page()
@@ -356,6 +347,12 @@ for group, g_dict in par.group_dict.iteritems():
             page2.img(src=(pdir + group + '_' + 'cohe_' + aux_name + '.png'),
                       alt=(" No plots for" + aux_name))
     page2.savehtml(hdir + cohe_page_name)
+
+# create the modal for the plot images
+modal = ol.span("&times;", class_="close")
+modal += ol.img(class_="modal-content", id="img01")
+modal += ol.div('', id="caption")
+page.div(modal, id='myModal', class_="modal")
 
 page.br()
 page.h2("Contacts")

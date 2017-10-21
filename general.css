@@ -246,7 +246,8 @@ a:link:hover, a:visited:hover
     /*background-position: 10px 12px; /* Position the search icon */
     /*background-repeat: no-repeat; /* Do not repeat the icon image */
     width: 100%; /* Full-width */
-    color: #007700
+    color: #007700;
+    font-weight: bold;
     font-size: 16px; /* Increase font-size */
     padding: 12px 20px 12px 40px; /* Add some padding */
     border: 1px solid #ddd; /* Add a grey border */
@@ -287,4 +288,30 @@ div.tab button.active {
     padding: 6px 12px;
     border: 1px solid #ccc;
     border-top: none;
+}
+
+ /* Style the buttons that are used to open and close the accordion panel */
+button.accordion {
+    background-color: #bbff99;
+    color: #444;
+    cursor: pointer;
+    padding: 18px;
+    width: 100%;
+    text-align: left;
+    border: none;
+    outline: none;
+    transition: 0.4s;
+}
+
+/* Add a background color to the button if it is clicked on (add the .active class with JS), and when you move the mouse over it (hover) */
+button.accordion.active, button.accordion:hover {
+    background-color: #226600;
+    color: #bbff99;
+}
+
+/* Style the accordion panel. Note: hidden by default */
+div.panel {
+    padding: 0 18px;
+    background-color: white;
+    display: none;
 }

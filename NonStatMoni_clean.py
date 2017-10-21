@@ -28,9 +28,9 @@ ntop = 5
 
 # directories where plots and html files must be saved
 pdir = 'plots/'
-
 style = 'general.css'
 tabstyle = 'table.css'
+modalstyle = 'modal.css'
 source = ''
 # brmsfile = '/users/valentin/PycharmProjects/Long Spectra/psd statistics 1186876818 1187222418 cutfreq=4000 resolution=2.5/brms.hdf5'
 brmsfile = '/users/valentin/PycharmProjects/Long Spectra/psd statistics 1187913618 1187928018 cutfreq=4000 resolution=2.5/brms.hdf5'
@@ -179,7 +179,7 @@ for group, g_dict in par.group_dict.iteritems():
                 if np.mean(mean_coh) >= 0.03:
                     # hichlist
                     hi_coh.append((band_name, j))
-
+            plt_path = hdir + pdir + group + '_cohe_' + aux_name + '.png'
             if (len(hi_corr) + len(hi_coh)) > 0:
                 plt.figure(figsize=(15, 6))
                 # axes([0.1, 0.1, 0.65, 0.8])
@@ -222,67 +222,31 @@ for group, g_dict in par.group_dict.iteritems():
                             .format(g_dict['channel'], band_name)
                 ax1.set_title('Coherence with {}, {:d} - {:d}'.
                               format(g_dict['channel'], gpsb, gpse))
-                plt.savefig(
-                    hdir + pdir + group + '_' + 'cohe_' + aux_name + '.png')
+
+                plt.savefig(plt_path)
                 plt.close()
             else:
                 try:
-                    os.remove(hdir + pdir + group + '_' + 'cohe_' + aux_name + '.png')
-                except:
+                    os.remove(plt_path)
+                except OSError:
                     pass
 
 
 # ##### Create summary web page ##############################################
 print "Generating Web Page..."
 page = markup.page()
-page.init(title="NonStatMoni", css=(style, tabstyle),
-          footer="(2017) <a href=mailto:snao20@hotmail.com>Michele Valentini</a>")
+page.init(title="NonStatMoni", css=(style, tabstyle, modalstyle),
+          footer="(2017)" +
+                 ol.a("Michele Valentini", href='mailto:snao20@hotmail.com'))
 page.script(src="scripts.js")
 page.script.close()
-page.a(name="top")
 
-# brms summary table generation
-#ch = [par.channel[0]]
-#num = 0
-# chnum = []
-# # obtain an unique channel list, and a vector containing how many times each channel is repeated
-# # works only if channels are listed "in order"
-# for channel in par.channel:
-#     if channel != ch[-1]:
-#         ch.append(channel)
-#         chnum.append(num)
-#         num = 1
-#     else:
-#         num += 1
-# chnum.append(num)
-
-# TODO: this table should be replaced by a menu that chooses the shown group.
-# page.table(id="t02")
-# prenum = 0
-# for c, num in zip(ch, chnum):
-#     page.th()
-#     page.td(style="width:50%")
-#     page.h4(c)
-#     page.th.close()
-#     for channel, dt, n in zip(par.channel[prenum: prenum + num],
-#                               par.dt[prenum: prenum + num], xrange(num)):
-#         bands = channelsandbands[channel + '_' + str(prenum + n)]
-#         page.td(style="width:100%")
-#         bmin = bands[0].split('_')[0]
-#         bmax = bands[-1].split('_')[1].split('Hz')[0]
-#         chbands = bmin + '_' + bmax
-#         page.add(
-#             '<a href=#%s>%s</a><br>(dt=%s)' % (channel + chbands, chbands, dt))
-#         page.td.close()
-#     page.tr.close()
-#     prenum += num
-# page.table.close()
-
-page.br()
-
-# best coherences and ccfs summary table generation
 page.input(type="text", id="myInput", onkeyup="myFunction()",
            placeholder="Search for aux_channel names..")
+# best coherences and ccfs summary table generation
+
+page.button("Auxillary channels summary table", class_="accordion")
+page.div(class_="panel").open()
 page.table(id="t01")
 for aux_name, aux_groups in par.aux_dict.iteritems():
     page.tr()
@@ -301,7 +265,7 @@ for aux_name, aux_groups in par.aux_dict.iteritems():
         page.td(style="width:10%; font-size :11px;")
 
         page.add("<a target=_blank href={}>{}</a><br>(ccf={:3f})"
-                 .format( pagename, chan_band, ccf))
+                 .format(pagename, chan_band, ccf))
         page.td.close()
 
     page.td()
@@ -311,13 +275,13 @@ for aux_name, aux_groups in par.aux_dict.iteritems():
     for chan_band, coh in mean_coh_sorted.items()[0:4]:
         pagename = 'cohe_{}.html'.format(chan_band.split('_')[0])
         page.td(style="width:10%; font-size:11px;")
-        page.add('<a target=_blank href={}/{}>{}</a><br>(mncoh={:3f})'
-                 .format(hdir.replace(' ', '%20'), pagename, chan_band, coh))
+        page.add('<a target=_blank href={}>{}</a><br>(mncoh={:3f})'
+                 .format(pagename, chan_band, coh))
         page.td.close()
 
     page.tr.close()
 page.table.close()
-
+page.div.close()
 
 # build the page menu
 onclick_gen = ("openGroup(event, '{}')".format(group)
@@ -327,12 +291,7 @@ page.div(ol.button(par.group_dict.keys(), class_='tablinks',
 
 # build each group subpage
 for group, g_dict in par.group_dict.iteritems():
-    # bands = channelsandbands[channel + '_' + str(nchan)]
-    # bmin = bands[0].split('_')[0]
-    # bmax = bands[-1].split('_')[1].split('Hz')[0]
-
-
-    # Generate list of best coherences and ccf for each group
+    # Build the highest ccf and coherence for this group table
     ccftab = np.zeros(ntop)
     cohtab = np.zeros(ntop)
     ccftab_names = np.zeros(ntop, dtype='string')
@@ -354,14 +313,6 @@ for group, g_dict in par.group_dict.iteritems():
                     best_indexes = cohtab.argsort()[1:][::-1]
                     cohtab = cohtab[best_indexes]
                     cohtab_names = cohtab_names[best_indexes]
-
-    frame = ol.h1("NonStatMoni BRMS for {} GPS {:d} - {:d}".format(
-                  g_dict['channel'], gpsb, gpse))
-    frame += ol.h2("Normalized BRMS time series")
-    # todo: normalized by what?
-    frame += ol.a(name=group + ': channel ' + g_dict['channel'])
-    frame += ol.a("Top", href="#top")
-    # Build the highest ccf and coherence table
     tab = [[" CCF ", "Coherence"]]
     for i in xrange(ntop):
         row = [
@@ -369,16 +320,31 @@ for group, g_dict in par.group_dict.iteritems():
             "{0}<br>Highest Coher. = {1}".format(cohtab_names[i], cohtab[i])]
         tab.append(row)
     tabstr = tb.tabmaker(tab, True, False)
-    frame += ol.div(ol.img(src=pdir + group + "_time.png"), style="float:left")
+
+    # build the rest of the frame
+    frame = ol.h1("NonStatMoni BRMS for {} GPS {:d} - {:d}".format(
+                  g_dict['channel'], gpsb, gpse))
+    frame += ol.h2("Normalized BRMS time series")
+    # todo: normalized by what?
+    frame += ol.a(name=group + ': channel ' + g_dict['channel'])
+    img = ol.img(id="myImg", src=pdir + group + "_time.png",
+                 alt=group + "Time plot", width="300", height="200")
+    frame += ol.div(img, style="float:left")
     frame += ol.div(tabstr)
-
-    #page.div("<div style=\"float:left\"><img src=\"" + pdir + group +
-    #        "_time.png\" /></div><div>" + tabstr + "</div>")
-
     frame += ol.h2("Spectrum of BRMS time series")
-    frame += ol.img(src=(pdir + group + '_psd.png'), alt="Plots")
-    frame += ol.h2("<a href=#top> ^ Top ^ </a> ")
+    frame += ol.img(id="myImg", src=pdir + group + "_psd.png",
+                    alt=group + "PSD plot", width="300", height="200")
+    cohe_page_name = 'cohe_{}.html'.format(group)
+    frame += ol.h2(ol.a("Coherences with slow channels", target='_blank',
+                        href=cohe_page_name))
     page.div(frame, id=group, class_='tabcontent')
+
+    # create the modal for the plot images
+
+    modal = ol.span("&time;", class_="close")
+    modal += ol.img(class_="modal-content", id="img01")
+    modal += ol.div(id="caption")
+    page.div(modal, id='myModal', class_="modal")
 
     # create coherence subpage
     page2 = markup.page()
@@ -388,11 +354,7 @@ for group, g_dict in par.group_dict.iteritems():
         if group in aux_groups:
             page2.img(src=(pdir + group + '_' + 'cohe_' + aux_name + '.png'),
                       alt=(" No plots for" + aux_name))
-    pagename = 'cohe_{}.html'.format(group)
-    page2.savehtml(hdir + pagename)
-    page.h2("<a target=_blank href=" + hdir.replace(' ', '%20') +
-            pagename + ">Coherences with slow channels</a>")
-    page.br()
+    page2.savehtml(hdir + cohe_page_name)
 
 page.br()
 page.h2("Contacts")

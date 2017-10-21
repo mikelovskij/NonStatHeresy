@@ -238,8 +238,7 @@ print "Generating Web Page..."
 page = markup.page()
 page.init(title="NonStatMoni", css=(style, tabstyle, modalstyle),
           footer="(2017)" +
-                 ol.a("Michele Valentini", href='mailto:snao20@hotmail.com'),
-          script={script: 'javascript'})
+                 ol.a("Michele Valentini", href='mailto:snao20@hotmail.com'))
 
 # best coherences and ccfs summary table generation
 
@@ -356,7 +355,7 @@ page.div(modal, id='myModal', class_="modal")
 
 page.br()
 page.h2("Contacts")
-
+page.scripts({script: 'javascript'})
 page.savehtml(hdir + 'index.html')
 
 print "Elapsed time %d seconds" % int(time.time() - start)

@@ -222,8 +222,7 @@ for group, g_dict in par.group_dict.iteritems():
                               ", could there be no positive data?" \
                             .format(g_dict['channel'], band_name)
                 ax1.set_title('Coherence with {}, {:d} - {:d}'.
-                              format(g_dict['channel'], gpsb, gpse))
-
+                              format(aux_name, gpsb, gpse))
                 plt.savefig(plt_path)
                 plt.close()
             else:

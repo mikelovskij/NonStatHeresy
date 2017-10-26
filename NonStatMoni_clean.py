@@ -16,7 +16,7 @@ import os
 import fnmatch
 from data_processing import DataProcessing
 import matplotlib
-from multiprocessing import Pool
+from pathos import pools
 
 matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
@@ -105,7 +105,7 @@ segments = segments[seg_mask]
 proc = DataProcessing(segments, fs, par.nav, par.group_dict, times)
 proc.cumulative_psd_computation()
 
-pool = Pool(processes=args['n_proc'])
+pool = pools.ProcessPool(args['n_proc'])
 pool_args = []
 for (aux_name, aux_groups), i in zip(par.aux_dict.iteritems(),
                                      xrange(len(par.aux_dict))):

@@ -16,6 +16,7 @@ import os
 import fnmatch
 from data_processing import DataProcessing
 import matplotlib
+from multiprocessing import Pool
 
 matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
@@ -60,6 +61,8 @@ parser.add_argument("-b", "--brms", dest='brms_file', default=brmsfile,
                     help="set brms data file", metavar="brmsFILE")
 parser.add_argument("-d", "--dir", dest="hdir",
                     help="output directory", metavar="OutDir")
+parser.add_argument("-p", "--proc", dest="n_proc", metavar="NumberOfProcesses",
+                    help='number of parallel processes to run', default=4)
 
 args = vars(parser.parse_args())
 par = Parameters(args['initialization'])
@@ -87,8 +90,6 @@ if max(times) > (60 * 100):
     t = times / 3600
     tunits = 'h'
 
-# TODO: - capire come plottare timeseries e psd dei gruppi nella nuova struttura
-
 
 # Coalesce the segments if they are too short.
 approx_fft_duration = int(np.floor(float(gpse - gpsb) / par.nav))
@@ -103,10 +104,15 @@ segments = segments[seg_mask]
 
 proc = DataProcessing(segments, fs, par.nav, par.group_dict, times)
 proc.cumulative_psd_computation()
+
+pool = Pool(processes=args['n_proc'])
+pool_args = []
 for (aux_name, aux_groups), i in zip(par.aux_dict.iteritems(),
                                      xrange(len(par.aux_dict))):
-    proc.auxillary_psd_csd_correlation(aux_name, aux_groups, par.aux_source)
+    #proc.auxillary_psd_csd_correlation(aux_name, aux_groups, par.aux_source)
+    pool_args.append([aux_name, aux_groups, par.aux_source])
 
+pool.map(proc.auxillary_psd_csd_correlation, pool_args)
 proc.pearson_cohefficient_computation()
 proc.coherence_computation()
 

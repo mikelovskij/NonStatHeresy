@@ -18,7 +18,6 @@ class DataProcessing:
         self.brms_sqmean = {}
         self.times = times
         self.freqs = []
-        self.aux_results = {}
         self.cohs = {}
         self.ccfs = {}
         self.mean_cohs = {}
@@ -163,7 +162,7 @@ class DataProcessing:
         aux_sum /= (nfft * self.n_points)
         aux_square_sum /= (nfft * self.n_points)
         prod_sum /= (nfft * self.n_points)
-        self.aux_results[aux_channel] = {'brms_bands': brms_bands,
+        return{'brms_bands': brms_bands,
                                          'aux_psd': aux_psd,
                                          'aux_mean': aux_sum,
                                          'aux_square_mean': aux_square_sum,
@@ -171,8 +170,8 @@ class DataProcessing:
                                          'csds': csds,
                                          'histogram': hist}
 
-    def coherence_computation(self):
-        for aux_name, aux_dict in self.aux_results.iteritems():
+    def coherence_computation(self, aux_results):
+        for aux_name, aux_dict in aux_results.iteritems():
             self.cohs[aux_name] = {}
             self.mean_cohs[aux_name] = {}
             brms_dict = aux_dict['brms_bands']
@@ -184,8 +183,8 @@ class DataProcessing:
                     / (band_psd * aux_psd)
                 self.mean_cohs[aux_name][group + '_' + band] = np.mean(self.cohs[aux_name][group + '_' + band])
 
-    def pearson_cohefficient_computation(self):
-        for aux_name, aux_dict in self.aux_results.iteritems():
+    def pearson_cohefficient_computation(self, aux_results):
+        for aux_name, aux_dict in aux_results.iteritems():
             self.ccfs[aux_name] = {}
             brms_dict = aux_dict['brms_bands']
             a_mn = aux_dict['aux_mean']

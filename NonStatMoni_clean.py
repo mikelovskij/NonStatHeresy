@@ -124,7 +124,7 @@ aux_results_temp = pool.map(proc.auxillary_psd_csd_correlation,
                        string_repeater(par.aux_source, len(par.aux_dict)))
 for aux_name, result in zip(par.aux_dict.iterkeys(), aux_results_temp):
     aux_results[aux_name] = result
-ipsh()
+
 proc.pearson_cohefficient_computation(aux_results)
 proc.coherence_computation(aux_results)
 
@@ -179,7 +179,6 @@ for group, g_dict in par.group_dict.iteritems():
     #                                          xrange(len(cohs))):
     for aux_name, aux_groups in par.aux_dict.iteritems():
         if group in aux_groups:
-            aux_results = proc.aux_results[aux_name]
             # hicorrlist = []
             hi_corr = []
             # hicohlist = []
@@ -212,7 +211,7 @@ for group, g_dict in par.group_dict.iteritems():
                                                             hi_corr[
                                                             n_rows * j:n_rows * (
                                                                 j + 1)]):
-                            h = proc.aux_results[aux_name]['histogram'][band_num]
+                            h = aux_results[aux_name]['histogram'][band_num]
                             ax = plt.subplot(gs[j, n_rows + k])
                             a = ax.pcolormesh(h[1], h[2], h[0])
                             ax.tick_params(axis='both', which='minor', labelsize=6)

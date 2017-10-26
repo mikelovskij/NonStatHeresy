@@ -168,7 +168,8 @@ class DataProcessing:
                                          'aux_square_mean': aux_square_sum,
                                          'prod_mean': prod_sum,
                                          'csds': csds,
-                                         'histogram': hist}
+                                         'histogram': hist,
+                                         'aux_name': aux_channel}
 
     def coherence_computation(self, aux_results):
         for aux_name, aux_dict in aux_results.iteritems():

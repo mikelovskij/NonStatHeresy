@@ -1,6 +1,5 @@
 import numpy as np
 import scipy.signal as sig
-from time import time, ctime
 import virgotools as vrg
 from functions import decimate, tryfivetimes, ipsh # TODO: aggiornare un po' sto decimate dai
 
@@ -104,7 +103,6 @@ class DataProcessing:
         aux_sum = 0
         prod_sum = np.zeros(len(brms_bands), dtype='float64')
         aux_square_sum = 0
-        t0 = time()
         nfft = 0
         hist = []
         for ((gpsb, gpse), j) in zip(self.segments, xrange(self.nsegments)):
@@ -153,10 +151,6 @@ class DataProcessing:
                             , bins=[hist[k][1], hist[k][2]])
                         hist[k][0] += h
                 nfft += 1
-            t1 = time()
-            tend = (t1 - t0) / (j + 1) * (self.nsegments - j)
-            print 'Estimated completion {0}, in {1:.2f} minutes'.format(
-                ctime(t1 + tend), (tend / 60))
         aux_psd /= nfft
         csds /= nfft
         aux_sum /= (nfft * self.n_points)

@@ -106,8 +106,6 @@ class DataProcessing:
         nfft = 0
         hist = []
         for ((gpsb, gpse), j) in zip(self.segments, xrange(self.nsegments)):
-            print 'Processing channel {0}, step {1} of {2} ...'.format(
-                aux_channel, j, self.nsegments)
             fft_per_segm, start, end = self.segment_indexes(gpsb, gpse)
             aux_data = self.get_channel_data(data_source,
                                              aux_channel, gpsb, gpse)

@@ -113,10 +113,10 @@ pool_args = []
 aux_results = {}
 t0 = time()
 n_aux = len(par.aux_dict)
-for result, j in zip(pool.uimap(proc.auxillary_psd_csd_correlation,
-                     par.aux_dict.iterkeys(), par.aux_dict.itervalues(),
-                     string_repeater(par.aux_source, n_aux)), xrange(n_aux)):
-    aux_results[result['aux_name']] = result
+for j, res in enumerate(pool.uimap(proc.auxillary_psd_csd_correlation,
+                        par.aux_dict.iterkeys(), par.aux_dict.itervalues(),
+                        string_repeater(par.aux_source, n_aux))):
+    aux_results[res['aux_name']] = res
     t1 = time()
     tend = (t1 - t0) / (j + 1) * (n_aux - j)
     print 'Estimated completion {0}, in {1:.2f} minutes'.format(

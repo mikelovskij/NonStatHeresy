@@ -107,14 +107,26 @@ proc.cumulative_psd_computation()
 
 pool = pools.ProcessPool(args['n_proc'])
 pool_args = []
-for (aux_name, aux_groups), i in zip(par.aux_dict.iteritems(),
-                                     xrange(len(par.aux_dict))):
+#for (aux_name, aux_groups), i in zip(par.aux_dict.iteritems(),
+#                                     xrange(len(par.aux_dict))):
     #proc.auxillary_psd_csd_correlation(aux_name, aux_groups, par.aux_source)
-    pool_args.append([aux_name, aux_groups, par.aux_source])
+#    pool_aux_name, aux_groups, par.aux_source])
 
-pool.map(proc.auxillary_psd_csd_correlation, pool_args)
-proc.pearson_cohefficient_computation()
-proc.coherence_computation()
+
+def string_repeater(string, n):
+    u = 0
+    while u < n:
+        yield string
+        u += 1
+aux_results = {}
+aux_results_temp = pool.map(proc.auxillary_psd_csd_correlation,
+                       par.aux_dict.iterkeys(), par.aux_dict.itervalues(),
+                       string_repeater(par.aux_source, len(par.aux_dict)))
+for aux_name, result in zip(par.aux_dict.iterkeys(), aux_results_temp):
+    aux_results[aux_name] = result
+ipsh()
+proc.pearson_cohefficient_computation(aux_results)
+proc.coherence_computation(aux_results)
 
 
 # for channel, units, dt, nav, cohe, nchan in zip(par.channel, par.units, par.dt,

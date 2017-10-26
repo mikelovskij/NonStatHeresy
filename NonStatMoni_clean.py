@@ -11,9 +11,9 @@ from markup import oneliner as ol
 from virgotools import gps2str
 import tables as tb
 import matplotlib.gridspec as grsp
-from functions import brms_reader, ipsh, extractbands, Parameters
+from functions import brms_reader, ipsh, extractbands, Parameters,\
+    string_repeater
 import os
-import fnmatch
 from data_processing import DataProcessing
 import matplotlib
 from pathos import pools
@@ -97,7 +97,7 @@ seg_mask = np.ones(len(segments), dtype=bool)
 for j in xrange(len(segments) - 1):
     if (segments[j][1] == segments[j + 1][0]) and (
                 (segments[j + 1][1] - segments[j][0]) < (
-                10 * approx_fft_duration)):
+                 10 * approx_fft_duration)):
         segments[j + 1][0] = segments[j][0]
         seg_mask[j] = False
 segments = segments[seg_mask]
@@ -107,32 +107,19 @@ proc.cumulative_psd_computation()
 
 pool = pools.ProcessPool(args['n_proc'])
 pool_args = []
-#for (aux_name, aux_groups), i in zip(par.aux_dict.iteritems(),
-#                                     xrange(len(par.aux_dict))):
-    #proc.auxillary_psd_csd_correlation(aux_name, aux_groups, par.aux_source)
-#    pool_aux_name, aux_groups, par.aux_source])
 
 
-def string_repeater(string, n):
-    u = 0
-    while u < n:
-        yield string
-        u += 1
 aux_results = {}
-aux_results_temp = pool.map(proc.auxillary_psd_csd_correlation,
-                       par.aux_dict.iterkeys(), par.aux_dict.itervalues(),
-                       string_repeater(par.aux_source, len(par.aux_dict)))
-for aux_name, result in zip(par.aux_dict.iterkeys(), aux_results_temp):
+aux_res_temp = pool.map(proc.auxillary_psd_csd_correlation,
+                        par.aux_dict.iterkeys(), par.aux_dict.itervalues(),
+                        string_repeater(par.aux_source, len(par.aux_dict)))
+for aux_name, result in zip(par.aux_dict.iterkeys(), aux_res_temp):
     aux_results[aux_name] = result
 
 proc.pearson_cohefficient_computation(aux_results)
 proc.coherence_computation(aux_results)
 
 
-# for channel, units, dt, nav, cohe, nchan in zip(par.channel, par.units, par.dt,
-#                                                par.nav,
-#                                                par.coherences,
-#                                                xrange(len(par.channel))):
 for group, g_dict in par.group_dict.iteritems():
     band_data = g_dict['brms_data']
     # bands = channelsandbands[channel + '_' + str(nchan)]
@@ -142,8 +129,8 @@ for group, g_dict in par.group_dict.iteritems():
     # ####### Plot time series
     fig = plt.figure(figsize=(10, 6))
     plt.axes([0.1, 0.1, 0.65, 0.8])
-    for band_name, data in band_data.iteritems():
-        plt.semilogy(t[::50], data[::50], linewidth=0.5, label=band_name)
+    for b_name, data in band_data.iteritems():
+        plt.semilogy(t[::50], data[::50], linewidth=0.5, label=b_name)
     plt.grid(True)
     plt.axis(xmax=max(t))
     plt.xlabel('Time [' + tunits + ']')
@@ -185,49 +172,51 @@ for group, g_dict in par.group_dict.iteritems():
             hi_coh = []
             # plotting every coherence is probably too much.
             #  fo una cosa tipo coherence?
-            for (band_name, data), j in zip(band_data.iteritems(),
-                                               xrange(len(band_data.items()))):
-                ccf = proc.ccfs[aux_name][group + '_' + band_name]
+            for (b_name, data), j in zip(band_data.iteritems(),
+                                         xrange(len(band_data.items()))):
+                ccf = proc.ccfs[aux_name][group + '_' + b_name]
                 mean_coh = proc.mean_cohs[aux_name][
-                    group + '_' + band_name]
+                    group + '_' + b_name]
                 # TODO: surely some distributions can give a significance estimate of the corrcoef
                 if abs(ccf) >= 0.15:
                     # hicorrlist.append(hist[j])
-                    hi_corr.append((band_name, j))
+                    hi_corr.append((b_name, j))
                 if np.mean(mean_coh) >= 0.03:
                     # hichlist
-                    hi_coh.append((band_name, j))
-            plt_path = hdir + pdir + group + '_cohe_' + aux_name.split(':')[1] + '.png'
+                    hi_coh.append((b_name, j))
+            plt_path = hdir + pdir + group + '_cohe_' + \
+                aux_name.split(':')[1] + '.png'
             if (len(hi_corr) + len(hi_coh)) > 0:
                 plt.figure(figsize=(15, 6))
-                # axes([0.1, 0.1, 0.65, 0.8])
                 if len(hi_corr) > 0:
                     n_rows = int(np.floor(np.sqrt(len(hi_corr))))
                     n_cols = int(np.ceil(np.sqrt(len(hi_corr))))
                     gs = grsp.GridSpec(n_cols, 2 * n_rows)
                     gs.update(wspace=0.2, hspace=0.5)
                     for j in xrange(n_cols):
-                        for k, (band_name, band_num) in zip(xrange(n_rows),
-                                                            hi_corr[
-                                                            n_rows * j:n_rows * (
-                                                                j + 1)]):
-                            h = aux_results[aux_name]['histogram'][band_num]
+                        for k, (b_name, b_num) in zip(xrange(n_rows),
+                                                      hi_corr[n_rows * j:
+                                                              n_rows *
+                                                              (j + 1)]):
+                            h = aux_results[aux_name]['histogram'][b_num]
                             ax = plt.subplot(gs[j, n_rows + k])
                             a = ax.pcolormesh(h[1], h[2], h[0])
-                            ax.tick_params(axis='both', which='minor', labelsize=6)
-                            ax.tick_params(axis='both', which='major', labelsize=6)
+                            ax.tick_params(axis='both', which='minor',
+                                           labelsize=6)
+                            ax.tick_params(axis='both', which='major',
+                                           labelsize=6)
                             ax.ticklabel_format(style="sci", scilimits=(0, 0),
                                                 axis="both")
-                            plt.title(band_name)
+                            plt.title(b_name)
                     ax1 = plt.subplot(gs[0:n_cols, 0:n_rows])
 
                 else:
                     ax1 = plt.subplot2grid((1, 1), (0, 0))
-                for (band_name, band_num) in hi_coh:
+                for (b_name, b_num) in hi_coh:
                     try:
-                        coh = proc.cohs[aux_name][group + '_' + band_name]
+                        coh = proc.cohs[aux_name][group + '_' + b_name]
                         ax1.semilogx(proc.freqs, coh, linewidth=0.5,
-                                     label=band_name)
+                                     label=b_name)
                         ax1.axis(ymin=0, ymax=1)
                         ax1.axis(xmin=1 / (2 * proc.n_points))
                         ax1.grid(True)
@@ -235,9 +224,9 @@ for group, g_dict in par.group_dict.iteritems():
                         ax1.set_ylabel('Coherence')
                         ax1.legend(loc=(1.02, 0.2))
                     except ValueError:
-                        print "Issue in plotting cpherence of channel {0} _ {1}" \
+                        print "Issue in plotting coherence of  {0} _ {1}" \
                               ", could there be no positive data?" \
-                            .format(g_dict['channel'], band_name)
+                            .format(g_dict['channel'], b_name)
                 ax1.set_title('Coherence with {}, {:d} - {:d}'.
                               format(aux_name, gpsb, gpse))
                 plt.savefig(plt_path)
@@ -359,7 +348,8 @@ for group, g_dict in par.group_dict.iteritems():
     page2.h1("Coherences with slow channels")
     for aux_name, aux_groups in par.aux_dict.iteritems():
         if group in aux_groups:
-            page2.img(src=(pdir + group + '_' + 'cohe_' + aux_name.split(':')[1] + '.png'),
+            page2.img(src=(pdir + group + '_' + 'cohe_' +
+                           aux_name.split(':')[1] + '.png'),
                       alt=(" No plots for" + aux_name))
     page2.savehtml(hdir + cohe_page_name)
 

@@ -24,6 +24,13 @@ def ipsh():
     ipshell(msg, stack_depth=2)
 
 
+def string_repeater(string, n):
+    u = 0
+    while u < n:
+        yield string
+        u += 1
+
+
 class Parameters:
     def __init__(self, initfile):
         cfg = ConfigParser.ConfigParser(
@@ -117,17 +124,6 @@ def brms_reader(file_name, group_dict):
             for band in g_dic['band_list']:
                 g_dic['brms_data'][band] = f[channel][band][:]
     return gpsb, gpse, sampling_f, segments, times
-
-
-# come gestisco la segmentazione dei dati? Per come funziona al momento il calcolatore di psd, perdo l'effettiva corrispondenza temporale
-# delle fft calcolate, ma forse potrebbe risultare non eccessivamente complesso il recuperarla. In questo modo le brsm avrebbero anche
-# il loro asse temporale. Come gestisco quindi le eventuali discontinuita' di cotale asse? Se non son troppo brutte
-# cioe' se i segmenti non sono troppo lunghi, probabilmente posso ignorarle, quando si calcolan correlazioni e coerenze
-
-
-# problema 2: uso i trend, o segnali piu' veloci, tipo gli rms magari decimati a 10 Hz? Il problema e' che in ogni caso
-# la risoluz in freq della psd e' 1/dt quindi se voglio brms a frequenza alta, voglio un dt basso e quindi perdo risoluz
-# in frequenza.
 
 
 # factor a number

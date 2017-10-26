@@ -2,7 +2,7 @@
 # @author Gabriele Vajente
 # /// Report generator for NonStatMoni BRMS monitor
 
-import time
+
 import numpy as np
 
 from argparse import ArgumentParser
@@ -17,12 +17,12 @@ import os
 from data_processing import DataProcessing
 import matplotlib
 from pathos import pools
-
+from time import time, ctime
 matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
 from collections import OrderedDict
 
-start = time.time()
+start = time()
 # **************************** Initialization ******************************
 ntop = 5
 
@@ -62,7 +62,8 @@ parser.add_argument("-b", "--brms", dest='brms_file', default=brmsfile,
 parser.add_argument("-d", "--dir", dest="hdir",
                     help="output directory", metavar="OutDir")
 parser.add_argument("-p", "--proc", dest="n_proc", metavar="NumberOfProcesses",
-                    help='number of parallel processes to run', default=4)
+                    help='number of parallel processes to run', default=4,
+                    type=int)
 
 args = vars(parser.parse_args())
 par = Parameters(args['initialization'])
@@ -110,11 +111,17 @@ pool_args = []
 
 
 aux_results = {}
-aux_res_temp = pool.map(proc.auxillary_psd_csd_correlation,
-                        par.aux_dict.iterkeys(), par.aux_dict.itervalues(),
-                        string_repeater(par.aux_source, len(par.aux_dict)))
-for aux_name, result in zip(par.aux_dict.iterkeys(), aux_res_temp):
-    aux_results[aux_name] = result
+t0 = time()
+n_aux = len(par.aux_dict)
+for result, j in zip(pool.uimap(proc.auxillary_psd_csd_correlation,
+                     par.aux_dict.iterkeys(), par.aux_dict.itervalues(),
+                     string_repeater(par.aux_source, n_aux)), xrange(n_aux)):
+    aux_results[result['aux_name']] = result
+    t1 = time()
+    tend = (t1 - t0) / (j + 1) * (n_aux - j)
+    print 'Estimated completion {0}, in {1:.2f} minutes'.format(
+        ctime(t1 + tend), (tend / 60))
+    print "completed channel {} of {}".format(j, n_aux)
 
 proc.pearson_cohefficient_computation(aux_results)
 proc.coherence_computation(aux_results)

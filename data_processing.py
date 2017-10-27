@@ -155,13 +155,13 @@ class DataProcessing:
         aux_square_sum /= (nfft * self.n_points)
         prod_sum /= (nfft * self.n_points)
         return{'brms_bands': brms_bands,
-                                         'aux_psd': aux_psd,
-                                         'aux_mean': aux_sum,
-                                         'aux_square_mean': aux_square_sum,
-                                         'prod_mean': prod_sum,
-                                         'csds': csds,
-                                         'histogram': hist,
-                                         'aux_name': aux_channel}
+               'aux_psd': aux_psd,
+               'aux_mean': aux_sum,
+               'aux_square_mean': aux_square_sum,
+               'prod_mean': prod_sum,
+               'csds': csds,
+               'histogram': hist,
+               'aux_name': aux_channel}
 
     def coherence_computation(self, aux_results):
         for aux_name, aux_dict in aux_results.iteritems():

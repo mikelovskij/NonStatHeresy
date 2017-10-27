@@ -10,7 +10,6 @@ import markup
 from markup import oneliner as ol
 from virgotools import gps2str
 import tables as tb
-import matplotlib.gridspec as grsp
 from functions import brms_reader, ipsh, extractbands, Parameters,\
     string_repeater
 import os
@@ -21,6 +20,7 @@ from time import time, ctime
 matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
 from collections import OrderedDict
+from plot_generation import brms_time_plots, brms_asd_plot, auxiliary_plots
 
 start = time()
 # **************************** Initialization ******************************
@@ -80,17 +80,6 @@ gpsb, gpse, fs, segments, times = brms_reader(args['brms_file'],
                                               par.group_dict)
 par.extract_aux_channels(gpsb)
 print "Analyzing lock between %d and %d" % (gpsb, gpse)
-# TODO: trasformo questo pezzetto in una funzione o perdo in leggibilita'?
-if max(times) <= 300:
-    tunits = 's'
-    t = times
-if (max(times) > 300) and (max(times) <= 60 * 100):
-    t = times / 60
-    tunits = 'min'
-if max(times) > (60 * 100):
-    t = times / 3600
-    tunits = 'h'
-
 
 # Coalesce the segments if they are too short.
 approx_fft_duration = int(np.floor(float(gpse - gpsb) / par.nav))
@@ -125,124 +114,37 @@ for j, res in enumerate(pool.uimap(proc.auxillary_psd_csd_correlation,
 
 proc.pearson_cohefficient_computation(aux_results)
 proc.coherence_computation(aux_results)
+print "Post-processing complete, saving the results in {}".format(???)
+# todo: un banale dump di tutta la classe?
+# todo: oppure salvo come testo le variabili principali?
+# todo: e magari in un altro testo i parametri usati?
+# quali sono le cose importanti da salvare:
+  # time
+  # freqs
+  # cohs
+  # ccfs
+  # mean cohs
+  # histograms
+  # group dict? hmm non basta il cfg e il cfg e hdf5 reader?
+  # segmenti coaletti?
+  # main psd
+  # forse e' meglio iniziare dall'"incapsulaggio " dei plot e della generaz pagine
+  # saving paths
 
-
+# Generate the plots, one group at a time.
+print "starting the plot generation."
 for group, g_dict in par.group_dict.iteritems():
-    band_data = g_dict['brms_data']
-    # bands = channelsandbands[channel + '_' + str(nchan)]
-    # for b in bands:
-    #   chbandsall.append('%s_%d@%s' % (channel, nchan, b))
+    # Plot time series of the brms
+    brms_time_plots(times, g_dict, hdir + pdir + group + '_time.png')
+    # Plot ASDs of the brms
+    brms_asd_plot(proc.brms_psd[group], proc.freqs, g_dict,
+                  hdir + pdir + group + '_psd.png', gpsb, gpse)
 
-    # ####### Plot time series
-    fig = plt.figure(figsize=(10, 6))
-    plt.axes([0.1, 0.1, 0.65, 0.8])
-    for b_name, data in band_data.iteritems():
-        plt.semilogy(t[::50], data[::50], linewidth=0.5, label=b_name)
-    plt.grid(True)
-    plt.axis(xmax=max(t))
-    plt.xlabel('Time [' + tunits + ']')
-    plt.ylabel('Normalized BRMS [' + g_dict['units'] + '/rHz]')
-    plt.legend(loc=(1.02, 0.2))
-    plt.title('{} BRMS {} - {}'.format(g_dict['channel'], gps2str(gpsb),
-                                       gps2str(gpse)), fontsize=10)
-    plt.savefig(hdir + pdir + group + '_time.png')
-    plt.close()
-
-    # ####### Plot  band spectra
-    plt.figure(figsize=(10, 6))
-    plt.axes([0.1, 0.1, 0.65, 0.8])
-    for band, sp in proc.brms_psd[group].iteritems():
-        try:
-            plt.loglog(proc.freqs, np.sqrt(sp), linewidth=0.5, label=band)
-        except ValueError:
-            print "Issue in plotting psd of {0}_{1}," \
-                  " may there be no positive data?".format(g_dict['channel'],
-                                                           band)
-    plt.axis(xmax=0.5)
-    plt.axis(xmin=1 / (2 * proc.n_points))
-    plt.grid(True)
-    plt.xlabel('Frequency [Hz]')
-    plt.ylabel('Spectrum of normalized BRMS [' + g_dict['units'] + '/rHz/rHz]')
-    plt.legend(loc=(1.02, 0.2))
-    plt.title('{} BRMS {} - {}'.format(g_dict['channel'], gps2str(gpsb),
-                                       gps2str(gpse)), fontsize=10)
-    plt.savefig(hdir + pdir + group + '_psd.png')
-    plt.close()
-
-    # for C, corrcoef, hist, cname, naux in zip(cohs, ccfs, histograms, cohe,
-    #                                          xrange(len(cohs))):
-    for aux_name, aux_groups in par.aux_dict.iteritems():
-        if group in aux_groups:
-            # hicorrlist = []
-            hi_corr = []
-            # hicohlist = []
-            hi_coh = []
-            # plotting every coherence is probably too much.
-            #  fo una cosa tipo coherence?
-            for (b_name, data), j in zip(band_data.iteritems(),
-                                         xrange(len(band_data.items()))):
-                ccf = proc.ccfs[aux_name][group + '_' + b_name]
-                mean_coh = proc.mean_cohs[aux_name][
-                    group + '_' + b_name]
-                # TODO: surely some distributions can give a significance estimate of the corrcoef
-                if abs(ccf) >= 0.15:
-                    # hicorrlist.append(hist[j])
-                    hi_corr.append((b_name, j))
-                if np.mean(mean_coh) >= 0.03:
-                    # hichlist
-                    hi_coh.append((b_name, j))
-            plt_path = hdir + pdir + group + '_cohe_' + \
-                aux_name.split(':')[1] + '.png'
-            if (len(hi_corr) + len(hi_coh)) > 0:
-                plt.figure(figsize=(15, 6))
-                if len(hi_corr) > 0:
-                    n_rows = int(np.floor(np.sqrt(len(hi_corr))))
-                    n_cols = int(np.ceil(np.sqrt(len(hi_corr))))
-                    gs = grsp.GridSpec(n_cols, 2 * n_rows)
-                    gs.update(wspace=0.2, hspace=0.5)
-                    for j in xrange(n_cols):
-                        for k, (b_name, b_num) in zip(xrange(n_rows),
-                                                      hi_corr[n_rows * j:
-                                                              n_rows *
-                                                              (j + 1)]):
-                            h = aux_results[aux_name]['histogram'][b_num]
-                            ax = plt.subplot(gs[j, n_rows + k])
-                            a = ax.pcolormesh(h[1], h[2], h[0])
-                            ax.tick_params(axis='both', which='minor',
-                                           labelsize=6)
-                            ax.tick_params(axis='both', which='major',
-                                           labelsize=6)
-                            ax.ticklabel_format(style="sci", scilimits=(0, 0),
-                                                axis="both")
-                            plt.title(b_name)
-                    ax1 = plt.subplot(gs[0:n_cols, 0:n_rows])
-
-                else:
-                    ax1 = plt.subplot2grid((1, 1), (0, 0))
-                for (b_name, b_num) in hi_coh:
-                    try:
-                        coh = proc.cohs[aux_name][group + '_' + b_name]
-                        ax1.semilogx(proc.freqs, coh, linewidth=0.5,
-                                     label=b_name)
-                        ax1.axis(ymin=0, ymax=1)
-                        ax1.axis(xmin=1 / (2 * proc.n_points))
-                        ax1.grid(True)
-                        ax1.set_xlabel('Frequency [Hz]')
-                        ax1.set_ylabel('Coherence')
-                        ax1.legend(loc=(1.02, 0.2))
-                    except ValueError:
-                        print "Issue in plotting coherence of  {0} _ {1}" \
-                              ", could there be no positive data?" \
-                            .format(g_dict['channel'], b_name)
-                ax1.set_title('Coherence with {}, {:d} - {:d}'.
-                              format(aux_name, gpsb, gpse))
-                plt.savefig(plt_path)
-                plt.close()
-            else:
-                try:
-                    os.remove(plt_path)
-                except OSError:
-                    pass
+    # Plot the auxilliary channels coherences and histograms if their
+    # mean coherence or correlation cohefficient surpasses a threshold
+    auxiliary_plots(group, par.aux_dict, g_dict, proc.freqs, proc.ccfs,
+                    proc.cohs, proc.mean_cohs, aux_results, gpsb, gpse,
+                    hdir + pdir, ccf_thresh=0.15, mn_coh_thresh=0.05)
 
 
 # ##### Create summary web page ##############################################
@@ -371,4 +273,4 @@ page.h2("Contacts")
 page.scripts({script: 'javascript'})
 page.savehtml(hdir + 'index.html')
 
-print "Elapsed time %d seconds" % int(time.time() - start)
+print "Elapsed time %d seconds" % int(time() - start)

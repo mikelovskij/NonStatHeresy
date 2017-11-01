@@ -33,58 +33,88 @@ def string_repeater(string, n):
 
 class Parameters:
     def __init__(self, initfile):
-        cfg = ConfigParser.ConfigParser(
+        self.cfg = ConfigParser.ConfigParser(
             {'aux_channel_source': '/virgoData/ffl/rds.ffl'},
             allow_no_value=True)
-        cfg.read(initfile)
+        self.cfg.read(initfile)
 
-        self.aux_source = cfg.get('GENERAL', 'aux_channel_source')
-        self.n_groups = cfg.getint('GENERAL', 'n_groups')
-        self.all_aux = cfg.getboolean('GENERAL', 'all_aux')
-        self.aux = cfg.get('GENERAL', 'aux_channels').split('\n') if cfg.get('GENERAL', 'aux_channels') else None
-        self.excluded = cfg.get('GENERAL', 'exclude').split('\n') if cfg.get('GENERAL', 'exclude') else None
-        self.nav = cfg.getint('GENERAL', 'averages')
+        self.aux_source = self.cfg.get('GENERAL', 'aux_channel_source')
+        self.n_groups = self.cfg.getint('GENERAL', 'n_groups')
+        self.all_aux = self.cfg.getboolean('GENERAL', 'all_aux')
+        self.aux = self.cfg.get('GENERAL', 'aux_channels').split(
+            '\n') if self.cfg.get('GENERAL', 'aux_channels') else None
+        self.excluded = self.cfg.get('GENERAL', 'exclude').split(
+            '\n') if self.cfg.get('GENERAL', 'exclude') else None
+        self.nav = self.cfg.getint('GENERAL', 'averages')
         self.group_dict = {}
         self.aux_dict = {}
         for group_n in xrange(self.n_groups):
-            section = 'GROUP' + str(group_n + 1)
-            self.group_dict[section] = {'channel': cfg.get(section, 'channel'),
-                                        'units': cfg.get(section, 'units'),
-                                        'bands': cfg.get(section, 'bands'),
-                                        'aux': cfg.get(section, 'aux_channels').split('\n') if cfg.get(section, 'aux_channels') else None,
-                                        'excl': cfg.get(section, 'exclusions').split('\n') if cfg.get(section, 'exclusions') else None
-                                        }
+            sctn = 'GROUP' + str(group_n + 1)
+            self.group_dict[sctn] = {'channel': self.cfg.get(sctn, 'channel'),
+                                     'units': self.cfg.get(sctn, 'units'),
+                                     'bands': self.cfg.get(sctn, 'bands'),
+                                     'aux': self.cfg.get(sctn,
+                                                         'aux_channels').split(
+                                         '\n') if self.cfg.get(sctn,
+                                                               'aux_channels') else None,
+                                     'excl': self.cfg.get(sctn,
+                                                          'exclusions').split(
+                                         '\n') if self.cfg.get(sctn,
+                                                               'exclusions') else None
+                                     }
+        if self.cfg.has_section('RESULTS'):
+            self.res_param = {}
+            for option in self.cfg.options('RESULTS'):
+
+                self.res_param[option] = self.cfg.get('RESULTS', option)
+                # Try to convert them to integers
+                # todo: is there a better way to check if they can be converted?
+                try:
+                    self.res_param[option] = int(self.res_param[option])
+                except ValueError:
+                    pass
+
+    def save_extended_config(self, **kwargs):
+        # todo: other interesting parameters, such as averages, npoints,
+        if not self.cfg.has_section('RESULTS'):
+            self.cfg.add_section('RESULTS')
+        for key, arg in kwargs.iteritems():
+            self.cfg.set('RESULTS', key, arg)
+        with open(kwargs['hdir'] + 'config.ini', mode='w') as f:
+            self.cfg.write(f)
 
     def extract_aux_channels(self, gpsb):
         if self.all_aux:
             chlist = get_channel_list(gpsb, self.aux_source)
-            for aux_name in chlist:
-                self.aux_dict[aux_name] = set(self.group_dict.keys())
+            for aux in chlist:
+                self.aux_dict[aux] = set(self.group_dict.keys())
         for excl_name in self.excluded or []:
             try:
-                del(self.aux_dict[excl_name])
+                del (self.aux_dict[excl_name])
             except KeyError:
-                for aux_name in self.aux_dict.iterkeys():
-                    if (fnmatch.fnmatch(aux_name, 'V1:' + excl_name + '*') or fnmatch.fnmatch(aux_name, excl_name + '*')):
-                        self.excluded.append(aux_name)
-        for aux_name in self.aux or []:
-            self.aux_dict[aux_name] = set(self.group_dict.keys())
+                for aux in self.aux_dict.iterkeys():
+                    if (fnmatch.fnmatch(aux, 'V1:' + excl_name + '*') or
+                       fnmatch.fnmatch(aux, excl_name + '*')):
+                        self.excluded.append(aux)
+        for aux in self.aux or []:
+            self.aux_dict[aux] = set(self.group_dict.keys())
         for group_name, dic in self.group_dict.iteritems():
             for excl_name in dic['excl'] or []:
                 try:
                     self.aux_dict[excl_name].remove(group_name)
                 except KeyError:
-                    for aux_name in self.aux_dict.iterkeys():
-                        if (fnmatch.fnmatch(aux_name, 'V1:' + excl_name + '*') or fnmatch.fnmatch(aux_name, excl_name + '*')):
+                    for aux in self.aux_dict.iterkeys():
+                        if (fnmatch.fnmatch(aux, 'V1:' + excl_name + '*') or
+                           fnmatch.fnmatch(aux, excl_name + '*')):
                             try:
-                                self.aux_dict[aux_name].remove(group_name)
+                                self.aux_dict[aux].remove(group_name)
                             except KeyError:
                                 pass
-            for aux_name in dic['aux'] or []:
+            for aux in dic['aux'] or []:
                 try:
-                    self.aux_dict[aux_name].add(group_name)
+                    self.aux_dict[aux].add(group_name)
                 except KeyError:
-                    self.aux_dict[aux_name] = {group_name}
+                    self.aux_dict[aux] = {group_name}
 
 
 def tryfivetimes(f):
@@ -102,6 +132,7 @@ def tryfivetimes(f):
                 if attempts == 5:
                     raise
         return out
+
     return wrapper
 
 
@@ -201,10 +232,9 @@ def simple_cumulative_psd_csd_correlation(main_data, main_times, auxchannels,
     nfft = 0
     nsegments = len(segments)
     hist = []
-    data_storage = {}  # some dictionary?
     for ((gpsb, gpse), j) in zip(segments, xrange(nsegments)):
-        print 'Data acquisition and fft computation in progress, step {0} of {1} ...'.format(
-            j, nsegments)
+        print 'Data acquisition and fft computation in progress,' \
+              ' step {0} of {1} ...'.format(j, nsegments)
         fftperacquisition = int(np.floor((gpse - gpsb) * downfreq / n_points))
         caux = []
         start = np.argmin(abs(main_times - gpsb))
@@ -241,9 +271,8 @@ def simple_cumulative_psd_csd_correlation(main_data, main_times, auxchannels,
                 aux_sum[k] += np.sum(c2[i * n_points: (i + 1) * n_points])
                 square_aux_sum[k] += np.sum(
                     c2[i * n_points: (i + 1) * n_points] ** 2)
-                prod_sum[k] += np.sum(c2[i * n_points: (i + 1) * n_points] * c[
-                                                                             i * n_points: (
-                                                                                               i + 1) * n_points])
+                prod_sum[k] += np.sum(c2[i * n_points: (i + 1) * n_points] *
+                                      c[i * n_points: (i + 1) * n_points])
                 # TODO: maybe calculating the histogram for every band and for every aux channel is a bit too expensive?
                 if nfft == 0:
                     h, x_edges, y_edges = np.histogram2d(
@@ -266,7 +295,7 @@ def simple_cumulative_psd_csd_correlation(main_data, main_times, auxchannels,
     return s1 / nfft, s2 / nfft, csd / nfft, sum_1 / (
         nfft * n_points), square_sum_1 / (nfft * n_points), aux_sum / (
                nfft * n_points), square_aux_sum / (
-           nfft * n_points), prod_sum / (
+               nfft * n_points), prod_sum / (
                nfft * n_points), freqs, hist
 
 
@@ -295,8 +324,8 @@ def less_simple_cumulative_psd_csd_correlation(main_data, main_times,
         for ch in auxchannels:
             data_storage[ch] = []
     for ((gpsb, gpse), j) in zip(segments, xrange(nsegments)):
-        print 'Data acquisition and fft computation in progress, step {0} of {1} ...'.format(
-            j, nsegments)
+        print 'Data acquisition and fft computation in progress, ' \
+              'step {0} of {1} ...'.format(j, nsegments)
         fftperacquisition = int(np.floor((gpse - gpsb) * downfreq / n_points))
         caux = []
         start = np.argmin(abs(main_times - gpsb))
@@ -310,10 +339,8 @@ def less_simple_cumulative_psd_csd_correlation(main_data, main_times,
                         with vrg.getChannel(data_source, ch, gpsb,
                                             gpse - gpsb) as ch2:
                             c_data = decimator_wrapper(downfreq, ch2)
-                            data_storage[ch].append(
-                                c_data)  # todo: forse qui non fa una copia e quindi quando vien modificato cambia?
-                            caux.append(
-                                c_data)  # todo : no, in teoria append fa una copia.
+                            data_storage[ch].append(c_data)
+                            caux.append(c_data)
                         break
                     except IOError, e:
                         attempts += 1
@@ -367,7 +394,7 @@ def less_simple_cumulative_psd_csd_correlation(main_data, main_times,
     return s1 / nfft, s2 / nfft, csd / nfft, sum_1 / (
         nfft * n_points), square_sum_1 / (nfft * n_points), aux_sum / (
                nfft * n_points), square_aux_sum / (
-           nfft * n_points), prod_sum / (
+               nfft * n_points), prod_sum / (
                nfft * n_points), freqs, hist, data_storage
 
 
@@ -468,17 +495,19 @@ def even_less_simple_cumulative_psd_csd_correlation(main_data, main_times,
     return s1 / nfft, s2 / nfft, csd / nfft, sum_1 / (
         nfft * n_points), square_sum_1 / (nfft * n_points), aux_sum / (
                nfft * n_points), square_aux_sum / (
-           nfft * n_points), prod_sum / (
+               nfft * n_points), prod_sum / (
                nfft * n_points), freqs, hist, data_storage
 
 
 def decimator_wrapper(downfreq, ch):
     if ch.fsample < downfreq:
-        print "Channels must have a larger or equal sampling frequency than the desired downsampled freq"
+        print "Channels must have a larger or equal sampling frequency than " \
+              "the desired downsampled freq"
         raise ValueError
     else:
         if ch.fsample % downfreq != 0:
-            print "Sampling frequency must be equal or an integer multiple of the downsampled frequency"
+            print "Sampling frequency must be equal or an integer " \
+                  "multiple of the downsampled frequency"
             raise ValueError
         else:
             if ch.fsample > downfreq:

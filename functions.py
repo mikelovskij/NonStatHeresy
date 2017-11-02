@@ -5,8 +5,10 @@ import inspect
 from IPython.terminal.embed import InteractiveShellEmbed
 import numpy as np
 import virgotools as vrg
-from time import time, ctime
+from time import time, ctime, sleep
 import scipy.signal as sig
+import ConfigParser
+import fnmatch
 
 
 # ipshell debugger during run
@@ -14,47 +16,121 @@ def ipsh():
     ipshell = InteractiveShellEmbed(banner1="risolvitore di problemi attivato")
 
     frame = inspect.currentframe().f_back
-    msg = 'Stopped at {0.f_code.co_filename} at line {0.f_lineno}'.format(frame)
+    msg = 'Stopped at {0.f_code.co_filename} at line {0.f_lineno}'.format(
+        frame)
 
     # Go back one level!
     # This is needed because the call to ipshell is inside the function ipsh()
     ipshell(msg, stack_depth=2)
 
 
-def brms_reader(file, channelsandbands):
-    with h5py.File(file, 'r') as f:
-        brms_data = {}
+def string_repeater(string, n):
+    u = 0
+    while u < n:
+        yield string
+        u += 1
+
+
+class Parameters:
+    def __init__(self, initfile):
+        cfg = ConfigParser.ConfigParser(
+            {'aux_channel_source': '/virgoData/ffl/rds.ffl'},
+            allow_no_value=True)
+        cfg.read(initfile)
+
+        self.aux_source = cfg.get('GENERAL', 'aux_channel_source')
+        self.n_groups = cfg.getint('GENERAL', 'n_groups')
+        self.all_aux = cfg.getboolean('GENERAL', 'all_aux')
+        self.aux = cfg.get('GENERAL', 'aux_channels').split('\n') if cfg.get('GENERAL', 'aux_channels') else None
+        self.excluded = cfg.get('GENERAL', 'exclude').split('\n') if cfg.get('GENERAL', 'exclude') else None
+        self.nav = cfg.getint('GENERAL', 'averages')
+        self.group_dict = {}
+        self.aux_dict = {}
+        for group_n in xrange(self.n_groups):
+            section = 'GROUP' + str(group_n + 1)
+            self.group_dict[section] = {'channel': cfg.get(section, 'channel'),
+                                        'units': cfg.get(section, 'units'),
+                                        'bands': cfg.get(section, 'bands'),
+                                        'aux': cfg.get(section, 'aux_channels').split('\n') if cfg.get(section, 'aux_channels') else None,
+                                        'excl': cfg.get(section, 'exclusions').split('\n') if cfg.get(section, 'exclusions') else None
+                                        }
+
+    def extract_aux_channels(self, gpsb):
+        if self.all_aux:
+            chlist = get_channel_list(gpsb, self.aux_source)
+            for aux_name in chlist:
+                self.aux_dict[aux_name] = set(self.group_dict.keys())
+        for excl_name in self.excluded or []:
+            try:
+                del(self.aux_dict[excl_name])
+            except KeyError:
+                for aux_name in self.aux_dict.iterkeys():
+                    if (fnmatch.fnmatch(aux_name, 'V1:' + excl_name + '*') or fnmatch.fnmatch(aux_name, excl_name + '*')):
+                        self.excluded.append(aux_name)
+        for aux_name in self.aux or []:
+            self.aux_dict[aux_name] = set(self.group_dict.keys())
+        for group_name, dic in self.group_dict.iteritems():
+            for excl_name in dic['excl'] or []:
+                try:
+                    self.aux_dict[excl_name].remove(group_name)
+                except KeyError:
+                    for aux_name in self.aux_dict.iterkeys():
+                        if (fnmatch.fnmatch(aux_name, 'V1:' + excl_name + '*') or fnmatch.fnmatch(aux_name, excl_name + '*')):
+                            try:
+                                self.aux_dict[aux_name].remove(group_name)
+                            except KeyError:
+                                pass
+            for aux_name in dic['aux'] or []:
+                try:
+                    self.aux_dict[aux_name].add(group_name)
+                except KeyError:
+                    self.aux_dict[aux_name] = {group_name}
+
+
+def tryfivetimes(f):
+    def wrapper(that, *args):
+        attempts = 0
+        out = None
+        while attempts < 5:
+            try:
+                out = f(that, *args)
+                break
+            except (IOError, vrg.frame_lib.ChannelNotFound) as e:
+                attempts += 1
+                print e
+                sleep(3)
+                if attempts == 5:
+                    raise
+        return out
+    return wrapper
+
+
+def extractbands(g_dict):
+    g_dict['band_list'] = []
+    b = g_dict['bands'].split(':')
+    for i in range(len(b) - 1):
+        g_dict['band_list'].append(b[i] + '_' + b[i + 1] + 'Hz')
+
+
+def brms_reader(file_name, group_dict):
+    with h5py.File(file_name, 'r') as f:
         [gpsb, gpse] = f.attrs['gps']
-        fsample = f.attrs['fsample']
+        sampling_f = f.attrs['fsample']
         segments = f.attrs['segments']
-        for (channel, bands) in channelsandbands.iteritems():
-            brms_data[channel] = {}
-            real_channel = ''
-            split_channel = channel.split('_')
-            for s in split_channel[0:-2]:
-                real_channel += (s + '_')
-            real_channel += split_channel[-2]
-            times = f[real_channel]['times'][:]
-            for b in bands:
-                brms_data[channel][b] = f[real_channel][b][:]
-    return gpsb, gpse, fsample, segments, times, brms_data
-
-
-# come gestisco la segmentazione dei dati? Per come funziona al momento il calcolatore di psd, perdo l'effettiva corrispondenza temporale
-# delle fft calcolate, ma forse potrebbe risultare non eccessivamente complesso il recuperarla. In questo modo le brsm avrebbero anche
-# il loro asse temporale. Come gestisco quindi le eventuali discontinuita' di cotale asse? Se non son troppo brutte
-# cioe' se i segmenti non sono troppo lunghi, probabilmente posso ignorarle, quando si calcolan correlazioni e coerenze
-
-
-# problema 2: uso i trend, o segnali piu' veloci, tipo gli rms magari decimati a 10 Hz? Il problema e' che in ogni caso
-# la risoluz in freq della psd e' 1/dt quindi se voglio brms a frequenza alta, voglio un dt basso e quindi perdo risoluz
-# in frequenza.
+        for (group, g_dic) in group_dict.iteritems():
+            g_dic['brms_data'] = {}
+            channel = g_dic['channel']
+            times = f[channel]['times'][:]
+            for band in g_dic['band_list']:
+                g_dic['brms_data'][band] = f[channel][band][:]
+    return gpsb, gpse, sampling_f, segments, times
 
 
 # factor a number
 def factors(n):
     return numpy.sort(reduce(list.__add__,
-                             ([i, n // i] for i in range(1, int(n ** 0.5) + 1) if n % i == 0)))[1:-1]
+                             ([i, n // i] for i in range(1, int(n ** 0.5) + 1)
+                              if n % i == 0)))[1:-1]
 
 
 # Custom decimation function, copied a long time ago from somewhere on the web
@@ -107,12 +183,15 @@ def decimate(x, q, n=None, ftype='iir', axis=-1):
 
 # TODO: add overlap support
 # TODO: add correlation computation support
-def simple_cumulative_psd_csd_correlation(main_data, main_times, auxchannels, n_points, segments, downfreq, data_source,
+def simple_cumulative_psd_csd_correlation(main_data, main_times, auxchannels,
+                                          n_points, segments, downfreq,
+                                          data_source,
                                           nbins):
     s1 = np.zeros((int(n_points / 2) + 1), dtype='float64')
     freqs = np.zeros((int(n_points / 2) + 1), dtype='float64')
     s2 = np.zeros((len(auxchannels), int(n_points / 2) + 1), dtype='float64')
-    csd = np.zeros((len(auxchannels), int(n_points / 2) + 1), dtype='complex128')
+    csd = np.zeros((len(auxchannels), int(n_points / 2) + 1),
+                   dtype='complex128')
     sum_1 = 0
     square_sum_1 = 0
     aux_sum = np.zeros(len(auxchannels), dtype='float64')
@@ -124,7 +203,8 @@ def simple_cumulative_psd_csd_correlation(main_data, main_times, auxchannels, n_
     hist = []
     data_storage = {}  # some dictionary?
     for ((gpsb, gpse), j) in zip(segments, xrange(nsegments)):
-        print 'Data acquisition and fft computation in progress, step {0} of {1} ...'.format(j, nsegments)
+        print 'Data acquisition and fft computation in progress, step {0} of {1} ...'.format(
+            j, nsegments)
         fftperacquisition = int(np.floor((gpse - gpsb) * downfreq / n_points))
         caux = []
         start = np.argmin(abs(main_times - gpsb))
@@ -134,52 +214,71 @@ def simple_cumulative_psd_csd_correlation(main_data, main_times, auxchannels, n_
             attempts = 0
             while attempts < 5:
                 try:
-                    with vrg.getChannel(data_source, ch, gpsb, gpse - gpsb) as ch2:
+                    with vrg.getChannel(data_source, ch, gpsb,
+                                        gpse - gpsb) as ch2:
                         caux.append(decimator_wrapper(downfreq, ch2))
                     break
                 except IOError, e:
                     attempts += 1
                     print e
         for i in xrange(fftperacquisition):
-            freqs, s1temp = sig.welch(c[i * n_points: (i + 1) * n_points], fs=downfreq,
+            freqs, s1temp = sig.welch(c[i * n_points: (i + 1) * n_points],
+                                      fs=downfreq,
                                       window='hanning', nperseg=n_points)
             s1 += s1temp
             sum_1 += np.sum(c[i * n_points: (i + 1) * n_points])
             square_sum_1 += np.sum(c[i * n_points: (i + 1) * n_points] ** 2)
             for (c2, k) in zip(caux, xrange(len(caux))):
                 _, csdtemp = sig.csd(c[i * n_points: (i + 1) * n_points],
-                                     c2[i * n_points: (i + 1) * n_points], fs=downfreq,
+                                     c2[i * n_points: (i + 1) * n_points],
+                                     fs=downfreq,
                                      window='hanning', nperseg=n_points)
-                _, s2temp = sig.welch(c2[i * n_points: (i + 1) * n_points], fs=downfreq,
+                _, s2temp = sig.welch(c2[i * n_points: (i + 1) * n_points],
+                                      fs=downfreq,
                                       window='hanning', nperseg=n_points)
                 s2[k] += s2temp
                 csd[k] += csdtemp
                 aux_sum[k] += np.sum(c2[i * n_points: (i + 1) * n_points])
-                square_aux_sum[k] += np.sum(c2[i * n_points: (i + 1) * n_points] ** 2)
-                prod_sum[k] += np.sum(c2[i * n_points: (i + 1) * n_points] * c[i * n_points: (i + 1) * n_points])
+                square_aux_sum[k] += np.sum(
+                    c2[i * n_points: (i + 1) * n_points] ** 2)
+                prod_sum[k] += np.sum(c2[i * n_points: (i + 1) * n_points] * c[
+                                                                             i * n_points: (
+                                                                                               i + 1) * n_points])
                 # TODO: maybe calculating the histogram for every band and for every aux channel is a bit too expensive?
                 if nfft == 0:
-                    h, x_edges, y_edges = np.histogram2d(c[i * n_points: (i + 1) * n_points], c2[i * n_points: (i + 1) * n_points],
-                                                         bins=nbins)
+                    h, x_edges, y_edges = np.histogram2d(
+                        c[i * n_points: (i + 1) * n_points],
+                        c2[i * n_points: (i + 1) * n_points],
+                        bins=nbins)
                     hist.append([h, x_edges, y_edges])
                 else:
-                    h, x_edges, y_edges = np.histogram2d(c[i * n_points: (i + 1) * n_points], c2[i * n_points: (i + 1) * n_points],
-                                                         bins=[hist[k][1], hist[k][2]])
+                    h, x_edges, y_edges = np.histogram2d(
+                        c[i * n_points: (i + 1) * n_points],
+                        c2[i * n_points: (i + 1) * n_points],
+                        bins=[hist[k][1], hist[k][2]])
                     hist[k][0] += h
 
             nfft += 1
         t1 = time()
         tend = (t1 - t0) / (j + 1) * (nsegments - j)
-        print 'Estimated completion {0}, in {1:.2f} minutes'.format(ctime(t1 + tend), (tend / 60))
-    return s1 / nfft, s2 / nfft, csd / nfft, sum_1 / (nfft * n_points), square_sum_1 / (nfft * n_points), aux_sum / (nfft * n_points), square_aux_sum / (nfft * n_points), prod_sum / (nfft * n_points), freqs, hist
+        print 'Estimated completion {0}, in {1:.2f} minutes'.format(
+            ctime(t1 + tend), (tend / 60))
+    return s1 / nfft, s2 / nfft, csd / nfft, sum_1 / (
+        nfft * n_points), square_sum_1 / (nfft * n_points), aux_sum / (
+               nfft * n_points), square_aux_sum / (
+           nfft * n_points), prod_sum / (
+               nfft * n_points), freqs, hist
 
 
-def less_simple_cumulative_psd_csd_correlation(main_data, main_times, auxchannels, n_points, segments, downfreq, data_source,
-                                          nbins, data_storage=None):
+def less_simple_cumulative_psd_csd_correlation(main_data, main_times,
+                                               auxchannels, n_points, segments,
+                                               downfreq, data_source,
+                                               nbins, data_storage=None):
     s1 = np.zeros((int(n_points / 2) + 1), dtype='float64')
     freqs = np.zeros((int(n_points / 2) + 1), dtype='float64')
     s2 = np.zeros((len(auxchannels), int(n_points / 2) + 1), dtype='float64')
-    csd = np.zeros((len(auxchannels), int(n_points / 2) + 1), dtype='complex128')
+    csd = np.zeros((len(auxchannels), int(n_points / 2) + 1),
+                   dtype='complex128')
     sum_1 = 0
     square_sum_1 = 0
     aux_sum = np.zeros(len(auxchannels), dtype='float64')
@@ -196,7 +295,8 @@ def less_simple_cumulative_psd_csd_correlation(main_data, main_times, auxchannel
         for ch in auxchannels:
             data_storage[ch] = []
     for ((gpsb, gpse), j) in zip(segments, xrange(nsegments)):
-        print 'Data acquisition and fft computation in progress, step {0} of {1} ...'.format(j, nsegments)
+        print 'Data acquisition and fft computation in progress, step {0} of {1} ...'.format(
+            j, nsegments)
         fftperacquisition = int(np.floor((gpse - gpsb) * downfreq / n_points))
         caux = []
         start = np.argmin(abs(main_times - gpsb))
@@ -207,10 +307,13 @@ def less_simple_cumulative_psd_csd_correlation(main_data, main_times, auxchannel
             if acquire:
                 while attempts < 5:
                     try:
-                        with vrg.getChannel(data_source, ch, gpsb, gpse - gpsb) as ch2:
+                        with vrg.getChannel(data_source, ch, gpsb,
+                                            gpse - gpsb) as ch2:
                             c_data = decimator_wrapper(downfreq, ch2)
-                            data_storage[ch].append(c_data) # todo: forse qui non fa una copia e quindi quando vien modificato cambia?
-                            caux.append(c_data)  # todo : no, in teoria append fa una copia.
+                            data_storage[ch].append(
+                                c_data)  # todo: forse qui non fa una copia e quindi quando vien modificato cambia?
+                            caux.append(
+                                c_data)  # todo : no, in teoria append fa una copia.
                         break
                     except IOError, e:
                         attempts += 1
@@ -220,45 +323,64 @@ def less_simple_cumulative_psd_csd_correlation(main_data, main_times, auxchannel
             else:
                 caux.append(data_storage[ch][j])
         for i in xrange(fftperacquisition):
-            freqs, s1temp = sig.welch(c[i * n_points: (i + 1) * n_points], fs=downfreq,
+            freqs, s1temp = sig.welch(c[i * n_points: (i + 1) * n_points],
+                                      fs=downfreq,
                                       window='hanning', nperseg=n_points)
             s1 += s1temp
             sum_1 += np.sum(c[i * n_points: (i + 1) * n_points])
             square_sum_1 += np.sum(c[i * n_points: (i + 1) * n_points] ** 2)
             for (c2, k) in zip(caux, xrange(len(caux))):
                 _, csdtemp = sig.csd(c[i * n_points: (i + 1) * n_points],
-                                     c2[i * n_points: (i + 1) * n_points], fs=downfreq,
+                                     c2[i * n_points: (i + 1) * n_points],
+                                     fs=downfreq,
                                      window='hanning', nperseg=n_points)
-                _, s2temp = sig.welch(c2[i * n_points: (i + 1) * n_points], fs=downfreq,
+                _, s2temp = sig.welch(c2[i * n_points: (i + 1) * n_points],
+                                      fs=downfreq,
                                       window='hanning', nperseg=n_points)
                 s2[k] += s2temp
                 csd[k] += csdtemp
                 aux_sum[k] += np.sum(c2[i * n_points: (i + 1) * n_points])
-                square_aux_sum[k] += np.sum(c2[i * n_points: (i + 1) * n_points] ** 2)
-                prod_sum[k] += np.sum(c2[i * n_points: (i + 1) * n_points] * c[i * n_points: (i + 1) * n_points])
+                square_aux_sum[k] += np.sum(
+                    c2[i * n_points: (i + 1) * n_points] ** 2)
+                prod_sum[k] += np.sum(c2[i * n_points: (i + 1) * n_points] * c[
+                                                                             i * n_points: (
+                                                                                               i + 1) * n_points])
                 # TODO: maybe calculating the histogram for every band and for every aux channel is a bit too expensive?
                 if nfft == 0:
-                    h, x_edges, y_edges = np.histogram2d(c[i * n_points: (i + 1) * n_points], c2[i * n_points: (i + 1) * n_points],
-                                                         bins=nbins)
+                    h, x_edges, y_edges = np.histogram2d(
+                        c[i * n_points: (i + 1) * n_points],
+                        c2[i * n_points: (i + 1) * n_points],
+                        bins=nbins)
                     hist.append([h, x_edges, y_edges])
                 else:
-                    h, x_edges, y_edges = np.histogram2d(c[i * n_points: (i + 1) * n_points], c2[i * n_points: (i + 1) * n_points],
-                                                         bins=[hist[k][1], hist[k][2]])
+                    h, x_edges, y_edges = np.histogram2d(
+                        c[i * n_points: (i + 1) * n_points],
+                        c2[i * n_points: (i + 1) * n_points],
+                        bins=[hist[k][1], hist[k][2]])
                     hist[k][0] += h
 
             nfft += 1
         t1 = time()
         tend = (t1 - t0) / (j + 1) * (nsegments - j)
-        print 'Estimated completion {0}, in {1:.2f} minutes'.format(ctime(t1 + tend), (tend / 60))
-    return s1 / nfft, s2 / nfft, csd / nfft, sum_1 / (nfft * n_points), square_sum_1 / (nfft * n_points), aux_sum / (nfft * n_points), square_aux_sum / (nfft * n_points), prod_sum / (nfft * n_points), freqs, hist, data_storage
+        print 'Estimated completion {0}, in {1:.2f} minutes'.format(
+            ctime(t1 + tend), (tend / 60))
+    return s1 / nfft, s2 / nfft, csd / nfft, sum_1 / (
+        nfft * n_points), square_sum_1 / (nfft * n_points), aux_sum / (
+               nfft * n_points), square_aux_sum / (
+           nfft * n_points), prod_sum / (
+               nfft * n_points), freqs, hist, data_storage
 
 
-def even_less_simple_cumulative_psd_csd_correlation(main_data, main_times, auxchannels, n_points, segments, downfreq, data_source,
-                                          nbins, data_storage=None):
+def even_less_simple_cumulative_psd_csd_correlation(main_data, main_times,
+                                                    auxchannels, n_points,
+                                                    segments, downfreq,
+                                                    data_source,
+                                                    nbins, data_storage=None):
     s1 = np.zeros((int(n_points / 2) + 1), dtype='float64')
     freqs = np.zeros((int(n_points / 2) + 1), dtype='float64')
     s2 = np.zeros((len(auxchannels), int(n_points / 2) + 1), dtype='float64')
-    csd = np.zeros((len(auxchannels), int(n_points / 2) + 1), dtype='complex128')
+    csd = np.zeros((len(auxchannels), int(n_points / 2) + 1),
+                   dtype='complex128')
     sum_1 = 0
     square_sum_1 = 0
     aux_sum = np.zeros(len(auxchannels), dtype='float64')
@@ -275,7 +397,8 @@ def even_less_simple_cumulative_psd_csd_correlation(main_data, main_times, auxch
         for ch in auxchannels:
             data_storage[ch] = []
     for ((gpsb, gpse), j) in zip(segments, xrange(nsegments)):
-        print 'Data acquisition and fft computation in progress, step {0} of {1} ...'.format(j, nsegments)
+        print 'Data acquisition and fft computation in progress, step {0} of {1} ...'.format(
+            j, nsegments)
         fftperacquisition = int(np.floor((gpse - gpsb) * downfreq / n_points))
         start = np.argmin(abs(main_times - gpsb))
         end = np.argmin(abs(main_times - gpse))
@@ -285,7 +408,8 @@ def even_less_simple_cumulative_psd_csd_correlation(main_data, main_times, auxch
             if acquire:
                 while attempts < 5:
                     try:
-                        with vrg.getChannel(data_source, ch, gpsb, gpse - gpsb) as ch2:
+                        with vrg.getChannel(data_source, ch, gpsb,
+                                            gpse - gpsb) as ch2:
                             c_data = decimator_wrapper(downfreq, ch2)
                             data_storage[ch].append(c_data)
                             c2 = c_data
@@ -299,37 +423,53 @@ def even_less_simple_cumulative_psd_csd_correlation(main_data, main_times, auxch
                 c2 = data_storage[ch][j]
             for i in xrange(fftperacquisition):
                 if k == 0:
-                    freqs, s1temp = sig.welch(c[i * n_points: (i + 1) * n_points], fs=downfreq,
-                                          window='hanning', nperseg=n_points)
+                    freqs, s1temp = sig.welch(
+                        c[i * n_points: (i + 1) * n_points], fs=downfreq,
+                        window='hanning', nperseg=n_points)
                     s1 += s1temp
                     sum_1 += np.sum(c[i * n_points: (i + 1) * n_points])
-                    square_sum_1 += np.sum(c[i * n_points: (i + 1) * n_points] ** 2)
-                #for (c2, k) in zip(caux, xrange(len(caux))):
+                    square_sum_1 += np.sum(
+                        c[i * n_points: (i + 1) * n_points] ** 2)
+                # for (c2, k) in zip(caux, xrange(len(caux))):
                 _, csdtemp = sig.csd(c[i * n_points: (i + 1) * n_points],
-                                     c2[i * n_points: (i + 1) * n_points], fs=downfreq,
+                                     c2[i * n_points: (i + 1) * n_points],
+                                     fs=downfreq,
                                      window='hanning', nperseg=n_points)
-                _, s2temp = sig.welch(c2[i * n_points: (i + 1) * n_points], fs=downfreq,
+                _, s2temp = sig.welch(c2[i * n_points: (i + 1) * n_points],
+                                      fs=downfreq,
                                       window='hanning', nperseg=n_points)
                 s2[k] += s2temp
                 csd[k] += csdtemp
                 aux_sum[k] += np.sum(c2[i * n_points: (i + 1) * n_points])
-                square_aux_sum[k] += np.sum(c2[i * n_points: (i + 1) * n_points] ** 2)
-                prod_sum[k] += np.sum(c2[i * n_points: (i + 1) * n_points] * c[i * n_points: (i + 1) * n_points])
+                square_aux_sum[k] += np.sum(
+                    c2[i * n_points: (i + 1) * n_points] ** 2)
+                prod_sum[k] += np.sum(c2[i * n_points: (i + 1) * n_points] * c[
+                                                                             i * n_points: (
+                                                                                               i + 1) * n_points])
                 # TODO: maybe calculating the histogram for every band and for every aux channel is a bit too expensive?
                 if (i == 0) and (j == 0):
-                    h, x_edges, y_edges = np.histogram2d(c[i * n_points: (i + 1) * n_points], c2[i * n_points: (i + 1) * n_points],
-                                                         bins=nbins)
+                    h, x_edges, y_edges = np.histogram2d(
+                        c[i * n_points: (i + 1) * n_points],
+                        c2[i * n_points: (i + 1) * n_points],
+                        bins=nbins)
                     hist.append([h, x_edges, y_edges])
                 else:
-                    h, x_edges, y_edges = np.histogram2d(c[i * n_points: (i + 1) * n_points], c2[i * n_points: (i + 1) * n_points],
-                                                         bins=[hist[k][1], hist[k][2]])
+                    h, x_edges, y_edges = np.histogram2d(
+                        c[i * n_points: (i + 1) * n_points],
+                        c2[i * n_points: (i + 1) * n_points],
+                        bins=[hist[k][1], hist[k][2]])
                     hist[k][0] += h
                 if k == 0:
                     nfft += 1
         t1 = time()
         tend = (t1 - t0) / (j + 1) * (nsegments - j)
-        print 'Estimated completion {0}, in {1:.2f} minutes'.format(ctime(t1 + tend), (tend / 60))
-    return s1 / nfft, s2 / nfft, csd / nfft, sum_1 / (nfft * n_points), square_sum_1 / (nfft * n_points), aux_sum / (nfft * n_points), square_aux_sum / (nfft * n_points), prod_sum / (nfft * n_points), freqs, hist, data_storage
+        print 'Estimated completion {0}, in {1:.2f} minutes'.format(
+            ctime(t1 + tend), (tend / 60))
+    return s1 / nfft, s2 / nfft, csd / nfft, sum_1 / (
+        nfft * n_points), square_sum_1 / (nfft * n_points), aux_sum / (
+               nfft * n_points), square_aux_sum / (
+           nfft * n_points), prod_sum / (
+               nfft * n_points), freqs, hist, data_storage
 
 
 def decimator_wrapper(downfreq, ch):
@@ -343,7 +483,7 @@ def decimator_wrapper(downfreq, ch):
         else:
             if ch.fsample > downfreq:
                 decimfactor = ch.fsample / downfreq
-                #print "Decimation factor {0}".format(decimfactor)
+                # print "Decimation factor {0}".format(decimfactor)
                 c = decimate(ch.data, int(decimfactor))
             else:
                 c = ch.data

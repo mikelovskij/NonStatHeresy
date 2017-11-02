@@ -19,3 +19,22 @@ table#t01 th {
     background-color: black;
     color: white;
 }
+
+table#t02 {
+    width:40%;
+}
+table#t02, th, td {
+    border: 1px solid black;
+    border-collapse: collapse;
+}
+
+table#t02 tr:nth-child(even) {
+    background-color: #eee;
+}
+table#t02 tr:nth-child(odd) {
+   background-color:#fff;
+}
+table#t02 th {
+    background-color: black;
+    color: white;
+}

@@ -25,7 +25,7 @@ parser.add_argument("-i", "--init", dest="initialization",
                     default='NonStatMoni.ini',
                     help="set initialization FILE", metavar="cfgFILE")
 parser.add_argument("-b", "--brms", dest='brms_file',
-                    help="set brms data file", metavar="brmsFILE")
+                    help="set brms data file", metavar="brms_file")
 parser.add_argument("-d", "--dir", dest="hdir",
                     help="output directory", metavar="OutDir")
 parser.add_argument("-p", "--proc", dest="n_proc", metavar="NumberOfProcesses",
@@ -38,12 +38,12 @@ parser.add_argument("-n", "--ntop", dest="ntop",
                     metavar="nTop")
 
 args = vars(parser.parse_args())
-try:
+if args['hdir']:
     hdir = args['hdir']
-except KeyError:
+else:
     # set up a default result directory
     basedir = os.path.dirname(os.path.abspath(__file__))
-    hdir = basedir + '/Results/{}/'.format(args['brmsfile'].split('/')[-2])
+    hdir = basedir + '/Results/{}/'.format(args['brms_file'].split('/')[-2])
     print "No result directory provided, results will be saved in" + hdir
 # relative path (to hdir) of the plots folder
 pdir = 'plots/'
@@ -128,11 +128,11 @@ savingdict = {'aux_dict': par.aux_dict,
               'brms_psd': proc.brms_psd,
               'cohs': proc.cohs,
               'aux_results': aux_results}
-par.save_extended_config({'gpsb': gpsb,
+par.save_extended_config(**{'gpsb': gpsb,
                           'gpse': gpse,
                           'hdir': hdir,
                           'pdir': pdir,
-                          'brms_file': args['brmsfile']})
+                          'brms_file': args['brms_file']})
 
 with open(hdir + 'post_proc_data.dat', mode='w') as f:
     cPickle.dump(savingdict, f)
@@ -144,9 +144,9 @@ with open(hdir + 'post_proc_data.dat', mode='w') as f:
 print "Elapsed time %d seconds" % int(time() - start)
 # Generate the plots, one group at a time.
 print "starting the plot generation."
-plot_generation.main(args['initifile'])
+plot_generation.main(hdir + 'config.ini')
 print 'starting the report generation'
-report_generator.main(args['initfile'], args['ntop'])
+report_generator.main(hdir + 'config.ini', args['ntop'])
 print "Done!, results are located in" + hdir
 
 print "Elapsed time %d seconds" % int(time() - start)

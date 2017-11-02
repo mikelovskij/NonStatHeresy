@@ -80,7 +80,7 @@ def auxiliary_plots(group, aux_dict, g_dict, freqs, ccfs, cohs, mean_cohs,
                     hi_corr.append((b_name, j))
                 if np.mean(mean_coh) >= mn_coh_thresh:
                     hi_coh.append((b_name, j))
-            plt_path += group + '_cohe_' + aux_name.split(':')[1] + '.png'
+            save_path =plt_path +  group + '_cohe_' + aux_name.split(':')[1] + '.png'
             if (len(hi_corr) + len(hi_coh)) > 0:
                 plt.figure(figsize=(15, 6))
                 if len(hi_corr) > 0:
@@ -122,12 +122,12 @@ def auxiliary_plots(group, aux_dict, g_dict, freqs, ccfs, cohs, mean_cohs,
                         print "Issue in plotting coherence of  {0} _ {1}" \
                               ", could there be no positive data?" \
                             .format(g_dict['channel'], b_name)
-                ax1.set_title('Coherence with {}, \n {:d} - {:d}'.
+                ax1.set_title('Coherence with {}, \n {} - {}'.
                               format(aux_name, gps2str(gpsb), gps2str(gpse)))
-                plt.savefig(plt_path)
+                plt.savefig(save_path)
                 plt.close()
             else:
                 try:
-                    os.remove(plt_path)
+                    os.remove(save_path)
                 except OSError:
                     pass

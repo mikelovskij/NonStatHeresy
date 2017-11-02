@@ -26,7 +26,7 @@ def main(initialization):
     gpse = par.res_param['gpse']
     pdir = par.res_param['pdir']
     hdir = par.res_param['hdir']
-    data = Data(hdir + 'post_data_data.dat')
+    data = Data(hdir + 'post_proc_data.dat')
     for group, g_dict in data.group_dict.iteritems():
         # Plot time series of the brms
         brms_time_plots(data.times, g_dict, hdir + pdir + group + '_time.png')

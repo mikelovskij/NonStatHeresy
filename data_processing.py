@@ -98,8 +98,8 @@ class DataProcessing:
             for band in self.group_dic[group]['brms_data'].iterkeys():
                 brms_bands.append((group, band))
         aux_psd = np.zeros(int(self.n_points / 2 + 1), dtype='float64')
-        csds = np.zeros((len(brms_bands), int(self.n_points / 2) + 1),
-                        dtype='complex128')
+        abs_csds = np.zeros((len(brms_bands), int(self.n_points / 2) + 1),
+                            dtype='float64')
         aux_sum = 0
         prod_sum = np.zeros(len(brms_bands), dtype='float64')
         aux_square_sum = 0
@@ -132,7 +132,7 @@ class DataProcessing:
                                          fs=self.down_freq,
                                          window='hanning',
                                          nperseg=self.n_points)
-                    csds[k] += csdtemp
+                    abs_csds[k] += np.absolute(csdtemp) ** 2
                     prod_sum[k] += np.sum(
                         aux_data[i * self.n_points: (i + 1) * self.n_points] *
                         band_data)
@@ -141,16 +141,18 @@ class DataProcessing:
                             band_data,
                             aux_data[i * self.n_points:(i + 1) * self.n_points]
                             , bins=self.nbins)
-                        hist.append([h, x_edges, y_edges])
+                        hist.append([tuple(map(np.int16, h)),
+                                     x_edges, y_edges])
                     else:
                         h, x_edges, y_edges = np.histogram2d(
                             band_data,
                             aux_data[i * self.n_points:(i + 1) * self.n_points]
                             , bins=[hist[k][1], hist[k][2]])
-                        hist[k][0] += h
+                        hist[k][0] = tuple(map(np.add, tuple(map(np.int16, h)),
+                                               hist[k][0]))
                 nfft += 1
         aux_psd /= nfft
-        csds /= nfft
+        abs_csds /= nfft
         aux_sum /= (nfft * self.n_points)
         aux_square_sum /= (nfft * self.n_points)
         prod_sum /= (nfft * self.n_points)
@@ -159,7 +161,7 @@ class DataProcessing:
                'aux_mean': aux_sum,
                'aux_square_mean': aux_square_sum,
                'prod_mean': prod_sum,
-               'csds': csds,
+               'abs_csds': abs_csds,
                'histogram': hist,
                'aux_name': aux_channel}
 
@@ -170,10 +172,10 @@ class DataProcessing:
             brms_dict = aux_dict['brms_bands']
             aux_psd = aux_dict['aux_psd']
             for (group, band), k in zip(brms_dict, xrange(len(brms_dict))):
-                csd = aux_dict['csds'][k]
+                abs_csd = aux_dict['abs_csds'][k]
                 band_psd = self.brms_psd[group][band]
-                self.cohs[aux_name][group + '_' + band] = (np.absolute(csd) ** 2) \
-                    / (band_psd * aux_psd)
+                self.cohs[aux_name][group + '_' + band] = abs_csd / (band_psd *
+                                                                     aux_psd)
                 self.mean_cohs[aux_name][group + '_' + band] = np.mean(self.cohs[aux_name][group + '_' + band])
 
     def pearson_cohefficient_computation(self, aux_results):

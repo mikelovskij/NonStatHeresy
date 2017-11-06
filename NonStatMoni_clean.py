@@ -119,6 +119,14 @@ proc.coherence_computation(aux_results)
 # todo: oppure salvo come testo le variabili principali?
 # todo: e magari in un altro testo i parametri usati?
 
+# Build a smaller version of aux_results in order to use less space when saving
+save_results = {}
+for aux_name, result in aux_results.iteritems():
+    save_results[aux_name] = {'brms_bands': result['brms_bands'],
+                              'aux_psd': result['aux_psd'],
+                              'histogram': result['histogram'],
+                              'aux_name': result['aux_name']}
+
 savingdict = {'aux_dict': par.aux_dict,
               'group_dict': par.group_dict,
               'times': times,
@@ -127,7 +135,7 @@ savingdict = {'aux_dict': par.aux_dict,
               'mean_cohs': proc.mean_cohs,
               'brms_psd': proc.brms_psd,
               'cohs': proc.cohs,
-              'aux_results': aux_results}
+              'aux_results': save_results}
 par.save_extended_config(**{'gpsb': gpsb,
                           'gpse': gpse,
                           'hdir': hdir,

@@ -99,7 +99,7 @@ class DataProcessing:
                 brms_bands.append((group, band))
         aux_psd = np.zeros(int(self.n_points / 2 + 1), dtype='float64')
         csds = np.zeros((len(brms_bands), int(self.n_points / 2) + 1),
-                            dtype='float64')
+                            dtype='complex128')
         aux_sum = 0
         prod_sum = np.zeros(len(brms_bands), dtype='float64')
         aux_square_sum = 0
@@ -152,8 +152,7 @@ class DataProcessing:
                                                hist[k][0]))
                 nfft += 1
         aux_psd /= nfft
-        abs_csds = (np.absolute(csds) ** 2)
-        abs_csds /= nfft
+        abs_csds = np.absolute(csds / nfft) ** 2
         aux_sum /= (nfft * self.n_points)
         aux_square_sum /= (nfft * self.n_points)
         prod_sum /= (nfft * self.n_points)

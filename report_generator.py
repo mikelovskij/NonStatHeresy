@@ -16,6 +16,8 @@ class Data:
             savingdict = cPickle.load(f)
         self.ccfs = savingdict['ccfs']
         self.mean_cohs = savingdict['mean_cohs']
+        self.aux_dict = savingdict['aux_dict']
+        self.group_dict = savingdict['group_dict']
 
 
 def main(initfile, ntop):
@@ -49,7 +51,7 @@ def main(initfile, ntop):
     page.input(type="text", id="myInput", onkeyup="myFunction()",
                placeholder="Search for aux_channel names..")
     page.table(id="t01")
-    for aux_name, aux_groups in par.aux_dict.iteritems():
+    for aux_name, aux_groups in data.aux_dict.iteritems():
         page.tr()
         page.td()
         page.h4(aux_name)
@@ -86,18 +88,18 @@ def main(initfile, ntop):
 
     # build the page menu
     onclick_gen = ("openGroup(event, '{}')".format(group)
-                   for group in par.group_dict.keys())
-    page.div(ol.button(par.group_dict.keys(), class_='tablinks',
+                   for group in data.group_dict.keys())
+    page.div(ol.button(data.group_dict.keys(), class_='tablinks',
                        onclick=onclick_gen), class_='tab')
 
     # build each group subpage
-    for group, g_dict in par.group_dict.iteritems():
+    for group, g_dict in data.group_dict.iteritems():
         # Build the highest ccf and coherence for this group table
         ccftab = np.zeros(ntop)
         cohtab = np.zeros(ntop)
         ccftab_names = np.zeros(ntop, dtype='string')
         cohtab_names = np.zeros(ntop, dtype='string')
-        for aux_name, aux_groups in par.aux_dict.iteritems():
+        for aux_name, aux_groups in data.aux_dict.iteritems():
             if group in aux_groups:
                 for band in g_dict['band_list']:
                     ccf = data.ccfs[aux_name][group + '_' + band]
@@ -143,7 +145,7 @@ def main(initfile, ntop):
         page2 = markup.page()
         page2.init(title="NonStatMoni", css='../style/style.css')
         page2.h1("Coherences with slow channels")
-        for aux_name, aux_groups in par.aux_dict.iteritems():
+        for aux_name, aux_groups in data.aux_dict.iteritems():
             if group in aux_groups:
                 page2.img(src=(pdir + group + '_' + 'cohe_' +
                                aux_name.split(':')[1] + '.png'),

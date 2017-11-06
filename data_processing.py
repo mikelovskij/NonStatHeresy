@@ -98,7 +98,7 @@ class DataProcessing:
             for band in self.group_dic[group]['brms_data'].iterkeys():
                 brms_bands.append((group, band))
         aux_psd = np.zeros(int(self.n_points / 2 + 1), dtype='float64')
-        abs_csds = np.zeros((len(brms_bands), int(self.n_points / 2) + 1),
+        csds = np.zeros((len(brms_bands), int(self.n_points / 2) + 1),
                             dtype='float64')
         aux_sum = 0
         prod_sum = np.zeros(len(brms_bands), dtype='float64')
@@ -132,7 +132,7 @@ class DataProcessing:
                                          fs=self.down_freq,
                                          window='hanning',
                                          nperseg=self.n_points)
-                    abs_csds[k] += np.absolute(csdtemp) ** 2
+                    csds[k] += csdtemp
                     prod_sum[k] += np.sum(
                         aux_data[i * self.n_points: (i + 1) * self.n_points] *
                         band_data)
@@ -152,6 +152,7 @@ class DataProcessing:
                                                hist[k][0]))
                 nfft += 1
         aux_psd /= nfft
+        abs_csds = (np.absolute(csds) ** 2)
         abs_csds /= nfft
         aux_sum /= (nfft * self.n_points)
         aux_square_sum /= (nfft * self.n_points)

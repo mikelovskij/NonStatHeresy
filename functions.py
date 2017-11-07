@@ -9,6 +9,7 @@ from time import time, ctime, sleep
 import scipy.signal as sig
 import ConfigParser
 import fnmatch
+from collections import OrderedDict
 
 
 # ipshell debugger during run
@@ -149,7 +150,7 @@ def brms_reader(file_name, group_dict):
         sampling_f = f.attrs['fsample']
         segments = f.attrs['segments']
         for (group, g_dic) in group_dict.iteritems():
-            g_dic['brms_data'] = {}
+            g_dic['brms_data'] = OrderedDict()
             channel = g_dic['channel']
             times = f[channel]['times'][:]
             for band in g_dic['band_list']:

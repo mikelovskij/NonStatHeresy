@@ -1,7 +1,7 @@
 import numpy as np
 import scipy.signal as sig
 import virgotools as vrg
-from functions import decimate, tryfivetimes, ipsh # TODO: aggiornare un po' sto decimate dai
+from functions import decimate, retry, ipsh # TODO: aggiornare un po' sto decimate dai
 import scipy.sparse as sp
 
 # Class for the post_processing of the brms data with auxillary channels
@@ -244,8 +244,7 @@ class DataProcessing:
 
         return sp.bsr_matrix(np.int16(h)) + hist, x_edges, y_edges
 
-
-    @tryfivetimes
+    @retry
     def get_channel_data(self, data_source, channel, gpsb, gpse):
         # TODO: extract other stuff from ch i.e. the units?
         with vrg.getChannel(data_source, channel, gpsb, gpse - gpsb) as ch:

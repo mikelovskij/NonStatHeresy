@@ -118,19 +118,19 @@ class Parameters:
                     self.aux_dict[aux] = {group_name}
 
 
-def tryfivetimes(f):
+def retry(f):
     def wrapper(that, *args):
         attempts = 0
         out = None
-        while attempts < 5:
+        while attempts < 10:
             try:
                 out = f(that, *args)
                 break
             except (IOError, vrg.frame_lib.ChannelNotFound) as e:
                 attempts += 1
                 print e
-                sleep(3)
-                if attempts == 5:
+                sleep(10)
+                if attempts == 10:
                     raise
         return out
 

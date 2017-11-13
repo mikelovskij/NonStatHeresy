@@ -2,7 +2,7 @@ import numpy as np
 import scipy.signal as sig
 import virgotools as vrg
 from functions import decimate, tryfivetimes, ipsh # TODO: aggiornare un po' sto decimate dai
-
+import scipy.sparse as sp
 
 # Class for the post_processing of the brms data with auxillary channels
 class DataProcessing:
@@ -137,19 +137,17 @@ class DataProcessing:
                         aux_data[i * self.n_points: (i + 1) * self.n_points] *
                         band_data)
                     if nfft == 0:
-                        h, x_edges, y_edges = np.histogram2d(
+                        h, x_edges, y_edges = self.sparse_histogram(
                             band_data,
                             aux_data[i * self.n_points:(i + 1) * self.n_points]
-                            , bins=self.nbins)
-                        hist.append([tuple(map(np.int16, h)),
-                                     x_edges, y_edges])
+                            , n_bins=self.nbins)
+                        hist.append([h, x_edges, y_edges])
                     else:
-                        h, x_edges, y_edges = np.histogram2d(
+                        h, x_edges, y_edges = self.update_histogram(hist[k][0],
+                            hist[k][1], hist[k][2],
                             band_data,
                             aux_data[i * self.n_points:(i + 1) * self.n_points]
-                            , bins=[hist[k][1], hist[k][2]])
-                        hist[k][0] = tuple(map(np.add, tuple(map(np.int16, h)),
-                                               hist[k][0]))
+                            )
                 nfft += 1
         aux_psd /= nfft
         abs_csds = np.absolute(csds / nfft) ** 2
@@ -190,6 +188,62 @@ class DataProcessing:
                 b_sq_mn = self.brms_sqmean[group][band]
                 self.ccfs[aux_name][group + '_' + band] = (p_mn - b_mn * a_mn) \
                     / np.sqrt((b_sq_mn - b_mn ** 2) * (a_sq_mn - a_mn ** 2))
+
+    @staticmethod
+    def sparse_histogram(x, y, n_bins):
+        h, x_edges, y_edges = np.histogram2d(x, y, bins=n_bins)
+        return sp.bsr_matrix(np.int16(h)), x_edges, y_edges
+
+    @staticmethod
+    def update_histogram(hist, x_edges, y_edges, x, y, border_fraction=0.1):
+        # check  the data borders and enlarge them if necessary
+        enlarged_edges = []
+        enlargement_size = []
+        for edges, data in zip([x_edges, y_edges], [x, y]):
+            bin_size = edges[1] - edges[0]
+            added_size_min = 0
+            added_size_max = 0
+            interval = (max(data) - min(data)) * border_fraction
+            if max(data) > edges[-1]:
+                added_edges = np.arange(edges[-1] + bin_size,
+                                        max(data) + interval,
+                                        bin_size)
+                added_size_max = len(added_edges)
+                new_edges = np.concatenate((edges, added_edges))
+            else:
+                new_edges = edges
+            if min(data) < new_edges[0]:
+                added_edges = np.arange(new_edges[0] - bin_size,
+                                        min(data) - interval,
+                                        -bin_size)[::-1]
+                added_size_min = len(added_edges)
+                new_edges = np.concatenate((added_edges, new_edges))
+            enlarged_edges.append(new_edges)
+            enlargement_size.append([added_size_min, added_size_max])
+        h, x_edges, y_edges = np.histogram2d(x, y, bins=enlarged_edges)
+
+        # enlarge x size of the old histogram by zero padding
+        if enlargement_size[0][0]:
+            top = sp.bsr_matrix(np.zeros([enlargement_size[0][0],
+                                          hist.shape[1]]))
+            hist = sp.vstack([top, hist])
+        if enlargement_size[0][1]:
+            bot = sp.bsr_matrix(np.zeros([enlargement_size[0][1],
+                                          hist.shape[1]]))
+            hist = sp.vstack([hist, bot])
+
+        # enlarge y size of the old histogram by zero padding
+        if enlargement_size[1][0]:
+            left = sp.bsr_matrix(np.zeros([hist.shape[0],
+                                           enlargement_size[1][0]]))
+            hist = sp.hstack([left, hist])
+        if enlargement_size[1][1]:
+            right = sp.bsr_matrix(np.zeros([hist.shape[0],
+                                            enlargement_size[1][1]]))
+            hist = sp.hstack([hist, right])
+
+        return sp.bsr_matrix(np.int16(h)) + hist, x_edges, y_edges
+
 
     @tryfivetimes
     def get_channel_data(self, data_source, channel, gpsb, gpse):

@@ -95,7 +95,7 @@ def auxiliary_plots(group, aux_dict, g_dict, freqs, ccfs, cohs, mean_cohs,
                                                               (j + 1)]):
                             h = aux_results[aux_name]['histogram'][b_num]
                             ax = plt.subplot(gs[j, n_rows + k])
-                            ax.pcolormesh(h[1], h[2], h[0])
+                            ax.pcolormesh(h[1], h[2], h[0].toarray())
                             ax.tick_params(axis='both', which='minor',
                                            labelsize=6)
                             ax.tick_params(axis='both', which='major',

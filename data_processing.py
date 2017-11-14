@@ -148,6 +148,7 @@ class DataProcessing:
                             band_data,
                             aux_data[i * self.n_points:(i + 1) * self.n_points]
                             )
+                        hist[k] = [h, x_edges, y_edges]
                 nfft += 1
         aux_psd /= nfft
         abs_csds = np.absolute(csds / nfft) ** 2

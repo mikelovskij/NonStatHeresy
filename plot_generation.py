@@ -38,7 +38,7 @@ def main(initialization):
         # mean coherence or correlation cohefficient surpasses a threshold
         auxiliary_plots(group, data.aux_dict, g_dict, data.freqs, data.ccfs,
                         data.cohs, data.mean_cohs, data.aux_results, gpsb,
-                        gpse, hdir + pdir, ccf_thresh=0.15, mn_coh_thresh=0.05)
+                        gpse, hdir + pdir, ccf_thresh=0.5, mn_coh_thresh=0.05)
 
 if __name__ == "__main__":
     # read configuration options and dataess

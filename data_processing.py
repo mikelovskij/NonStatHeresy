@@ -138,15 +138,17 @@ class DataProcessing:
                         band_data)
                     if nfft == 0:
                         h, x_edges, y_edges = self.sparse_histogram(
-                            band_data,
-                            aux_data[i * self.n_points:(i + 1) * self.n_points]
+                            np.log(band_data),
+                            np.log(aux_data[i * self.n_points:
+                                            (i + 1) * self.n_points])
                             , n_bins=self.nbins)
                         hist.append([h, x_edges, y_edges])
                     else:
                         h, x_edges, y_edges = self.update_histogram(hist[k][0],
                             hist[k][1], hist[k][2],
-                            band_data,
-                            aux_data[i * self.n_points:(i + 1) * self.n_points]
+                            np.log(band_data),
+                            np.log(aux_data[i * self.n_points:
+                                            (i + 1) * self.n_points])
                             )
                         hist[k] = [h, x_edges, y_edges]
                 nfft += 1

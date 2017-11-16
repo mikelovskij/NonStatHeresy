@@ -94,8 +94,11 @@ def auxiliary_plots(group, aux_dict, g_dict, freqs, ccfs, cohs, mean_cohs,
                                                               n_rows *
                                                               (j + 1)]):
                             h = aux_results[aux_name]['histogram'][b_num]
+                            # rebuild the bin_grid of the histogram
+                            xg, yg = np.mgrid[h[1][0]:h[1][1]:h[1][3] * 1j,
+                                              h[2][0]:h[2][1]:h[2][3] * 1j]
                             ax = plt.subplot(gs[j, n_rows + k])
-                            ax.pcolormesh(h[2], h[1], h[0].toarray())
+                            ax.pcolormesh(yg, xg, h[0].toarray())
                             ax.tick_params(axis='both', which='minor',
                                            labelsize=6)
                             ax.tick_params(axis='both', which='major',

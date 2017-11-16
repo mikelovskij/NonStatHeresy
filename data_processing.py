@@ -143,6 +143,7 @@ class DataProcessing:
                                             (i + 1) * self.n_points]
                             , n_bins=self.nbins)
                         hist.append([h, x_edges, y_edges])
+                        # TODO: dovrei salvare solo il min e il max degli edges
                     else:
                         h, x_edges, y_edges = self.update_histogram(hist[k][0],
                             hist[k][1], hist[k][2],
@@ -195,30 +196,35 @@ class DataProcessing:
     @staticmethod
     def sparse_histogram(x, y, n_bins):
         h, x_edges, y_edges = np.histogram2d(x, y, bins=n_bins)
-        return sp.bsr_matrix(np.int16(h)), x_edges, y_edges
+        x_width = x_edges[1] - x_edges[0]
+        y_width = y_edges[1] - y_edges[0]
+        # todo: check that linspace as used in update histogram gives the same results
+        return (sp.bsr_matrix(np.int16(h)),
+                [x_edges[0], x_edges[-1], x_width, len(x_edges)],
+                [y_edges[0], y_edges[-1], y_width, len(y_edges)])
 
     @staticmethod
-    def update_histogram(hist, x_edges, y_edges, x, y, border_fraction=0.1):
+    def update_histogram(hist, x_lim, y_lim, x, y, border_fraction=0.05):
         # check  the data borders and enlarge them if necessary
         enlarged_edges = []
         enlargement_size = []
-        for edges, data in zip([x_edges, y_edges], [x, y]):
-            bin_size = edges[1] - edges[0]
+        for limits, data in zip([x_lim, y_lim], [x, y]):
+            old_edges = np.linspace(limits[0], limits[1], limits[3])
             added_size_min = 0
             added_size_max = 0
             interval = (max(data) - min(data)) * border_fraction
-            if max(data) > edges[-1]:
-                added_edges = np.arange(edges[-1] + bin_size,
+            if max(data) > limits[1]:
+                added_edges = np.arange(limits[1] + limits[2],
                                         max(data) + interval,
-                                        bin_size)
+                                        limits[2])
                 added_size_max = len(added_edges)
-                new_edges = np.concatenate((edges, added_edges))
+                new_edges = np.concatenate((old_edges, added_edges))
             else:
-                new_edges = edges
+                new_edges = old_edges
             if min(data) < new_edges[0]:
-                added_edges = np.arange(new_edges[0] - bin_size,
+                added_edges = np.arange(new_edges[0] - limits[2],
                                         min(data) - interval,
-                                        -bin_size)[::-1]
+                                        -limits[2])[::-1]
                 added_size_min = len(added_edges)
                 new_edges = np.concatenate((added_edges, new_edges))
             enlarged_edges.append(new_edges)
@@ -245,7 +251,9 @@ class DataProcessing:
                                             enlargement_size[1][1]]))
             hist = sp.hstack([hist, right])
 
-        return sp.bsr_matrix(np.int16(h)) + hist, x_edges, y_edges
+        return (sp.bsr_matrix(np.int16(h)) + hist,
+                [x_edges[0], x_edges[-1], x_lim[2], len(x_edges)],
+                [y_edges[0], y_edges[-1], y_lim[2], len(y_edges)])
 
     @retry
     def get_channel_data(self, data_source, channel, gpsb, gpse):

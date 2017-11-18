@@ -24,7 +24,7 @@ class DataProcessing:
         estimated_points = 0
         for seg in self.segments:
             estimated_points += (seg[1] - seg[0]) * self.down_freq
-        self.nbins = int(np.ceil(2 * (estimated_points ** (1.0 / 3))))
+        self.nbins = int(np.ceil((estimated_points ** (1.0 / 3))))
         self.n_points = int(pow(2, np.floor(np.log((2 * estimated_points) / (self.n_averages + 1)) / np.log(2))))
 
     # returns the indexes corresponding to the gpse and gpsb times specified
@@ -199,7 +199,7 @@ class DataProcessing:
         x_width = x_edges[1] - x_edges[0]
         y_width = y_edges[1] - y_edges[0]
         # todo: check that linspace as used in update histogram gives the same results
-        return (sp.bsr_matrix(np.int16(h)),
+        return (sp.coo_matrix(h.astype('int16')),
                 [x_edges[0], x_edges[-1], x_width, len(x_edges)],
                 [y_edges[0], y_edges[-1], y_width, len(y_edges)])
 
@@ -212,18 +212,20 @@ class DataProcessing:
             old_edges = np.linspace(limits[0], limits[1], limits[3])
             added_size_min = 0
             added_size_max = 0
-            interval = (max(data) - min(data)) * border_fraction
-            if max(data) > limits[1]:
+            mx = np.max(data)
+            mn = np.min(data)
+            interval = (mx - mn) * border_fraction
+            if mx > limits[1]:
                 added_edges = np.arange(limits[1] + limits[2],
-                                        max(data) + interval,
+                                        mx + interval,
                                         limits[2])
                 added_size_max = len(added_edges)
                 new_edges = np.concatenate((old_edges, added_edges))
             else:
                 new_edges = old_edges
-            if min(data) < new_edges[0]:
+            if mn < new_edges[0]:
                 added_edges = np.arange(new_edges[0] - limits[2],
-                                        min(data) - interval,
+                                        mn - interval,
                                         -limits[2])[::-1]
                 added_size_min = len(added_edges)
                 new_edges = np.concatenate((added_edges, new_edges))
@@ -251,7 +253,7 @@ class DataProcessing:
                                             enlargement_size[1][1]]))
             hist = sp.hstack([hist, right])
 
-        return (sp.bsr_matrix(np.int16(h)) + hist,
+        return (sp.coo_matrix(h.astype('int16')) + hist,
                 [x_edges[0], x_edges[-1], x_lim[2], len(x_edges)],
                 [y_edges[0], y_edges[-1], y_lim[2], len(y_edges)])
 

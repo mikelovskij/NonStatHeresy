@@ -32,7 +32,7 @@ parser.add_argument("-p", "--proc", dest="n_proc", metavar="NumberOfProcesses",
                     help='number of parallel processes to run', default=4,
                     type=int)
 parser.add_argument("-n", "--ntop", dest="ntop",
-                    default='5', type=int,
+                    default='10', type=int,
                     help="number of top coherences and correlation "
                          "cohefficients to be shown in the result table",
                     metavar="nTop")

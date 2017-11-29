@@ -47,7 +47,7 @@ class Parameters:
         self.excluded = self.cfg.get('GENERAL', 'exclude').split(
             '\n') if self.cfg.get('GENERAL', 'exclude') else None
         self.nav = self.cfg.getint('GENERAL', 'averages')
-        self.group_dict = {}
+        self.group_dict = OrderedDict()
         self.aux_dict = {}
         for group_n in xrange(self.n_groups):
             sctn = 'GROUP' + str(group_n + 1)

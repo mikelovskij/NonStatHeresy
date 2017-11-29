@@ -95,34 +95,73 @@ def main(initfile, ntop):
     # build each group subpage
     for group, g_dict in data.group_dict.iteritems():
         # Build the highest ccf and coherence for this group table
-        ccftab = np.zeros(ntop)
-        cohtab = np.zeros(ntop)
-        ccftab_names = np.zeros(ntop, dtype='string')
-        cohtab_names = np.zeros(ntop, dtype='string')
-        for aux_name, aux_groups in data.aux_dict.iteritems():
+        ccftab = {group: np.zeros(ntop)}
+        cohtab = {group: np.zeros(ntop)}
+        ccftab_names = {group: np.zeros(ntop, dtype='string')}
+        cohtab_names = {group: np.zeros(ntop, dtype='string')}
+        for aux_n, aux_name, aux_groups in enumerate(data.aux_dict.iteritems()):
             if group in aux_groups:
                 for band in g_dict['band_list']:
+                    if aux_n == 0:
+                        ccftab[band] = np.zeros(ntop)
+                        cohtab[band] = np.zeros(ntop)
+                        ccftab_names[band] = np.zeros(ntop, dtype='string')
+                        cohtab_names[band] = np.zeros(ntop, dtype='string')
                     ccf = data.ccfs[aux_name][group + '_' + band]
-                    if abs(ccf) > min(np.abs(ccftab)):
-                        ccftab = np.concatenate((ccftab, [ccf]))
-                        ccftab_names = np.concatenate((ccftab_names, [aux_name]))
-                        best_indexes = np.abs(ccftab).argsort()[1:][::-1]
-                        ccftab = ccftab[best_indexes]
-                        ccftab_names = ccftab_names[best_indexes]
                     coh = data.mean_cohs[aux_name][group + '_' + band]
-                    if coh > min(cohtab):
-                        cohtab = np.concatenate((cohtab, [coh]))
-                        cohtab_names = np.concatenate((cohtab_names, [aux_name]))
-                        best_indexes = cohtab.argsort()[1:][::-1]
-                        cohtab = cohtab[best_indexes]
-                        cohtab_names = cohtab_names[best_indexes]
+                    # todo: build single band tables too
+                    if abs(ccf) > min(np.abs(ccftab[band])):
+                        ccftab[band] = np.concatenate((ccftab[band], [ccf]))
+                        ccftab_names[band] = np.concatenate((ccftab_names[band],
+                                                             [aux_name]))
+                        best_indexes = np.abs(ccftab[band]).argsort()[1:][::-1]
+                        ccftab[band] = ccftab[band][best_indexes]
+                        ccftab_names[band] = ccftab_names[band][best_indexes]
+                    if coh > min(cohtab[band]):
+                        cohtab[band] = np.concatenate((cohtab[band], [coh]))
+                        cohtab_names[band] = np.concatenate((cohtab_names[band],
+                                                             [aux_name]))
+                        best_indexes = cohtab[band].argsort()[1:][::-1]
+                        cohtab[band] = cohtab[band][best_indexes]
+                        cohtab_names[band] = cohtab_names[band][best_indexes]
+
+                    # Build the full group best tabs
+                    if abs(ccf) > min(np.abs(ccftab[group])):
+                        ccftab[group] = np.concatenate((ccftab[group], [ccf]))
+                        ccftab_names[group] = np.concatenate((ccftab_names[group],
+                                                             [aux_name +
+                                                             ' with ' + band]))
+                        best_indexes = np.abs(ccftab[group]).argsort()[1:][::-1]
+                        ccftab[group] = ccftab[group][best_indexes]
+                        ccftab_names[group] = ccftab_names[group][best_indexes]
+                    if coh > min(cohtab[group]):
+                        cohtab[group] = np.concatenate((cohtab[group], [coh]))
+                        cohtab_names[group] = np.concatenate((cohtab_names[group],
+                                                             [aux_name +
+                                                             ' with ' + band]))
+                        best_indexes = cohtab[group].argsort()[1:][::-1]
+                        cohtab[group] = cohtab[group][best_indexes]
+                        cohtab_names[group] = cohtab_names[group][best_indexes]
         tab = [[" CCF ", "Coherence"]]
         for i in xrange(ntop):
             row = [
-                "{0}<br>Highest CCFs = {1}".format(ccftab_names[i], ccftab[i]),
-                "{0}<br>Mean Coher. = {1}".format(cohtab_names[i], cohtab[i])]
+                "{0}<br>CCFs = {1}".format(ccftab_names[group][i],
+                                           ccftab[group][i]),
+                "{0}<br>Mean Coher. = {1}".format(cohtab_names[group][i],
+                                                  cohtab[group][i])]
             tab.append(row)
-        tabstr = tb.tabmaker(tab, True, False)
+        tab_str = {group: tb.tabmaker(tab, True, False)}
+
+        for band in g_dict['band_list']:
+            tab = [[" CCF ", "Coherence"]]
+            for i in xrange(ntop):
+                row = [
+                    "{0}<br>CCFs = {1}".format(ccftab_names[band][i],
+                                               ccftab[band][i]),
+                    "{0}<br>Mean Coher. = {1}".format(cohtab_names[band][i],
+                                                      cohtab[band][i])]
+                tab.append(row)
+            tab_str[band] = tb.tabmaker(tab, True, False)
 
         # build the rest of the frame
         frame = ol.h1("NonStatMoni BRMS for {} GPS {:d} - {:d}".format(
@@ -132,7 +171,16 @@ def main(initfile, ntop):
         img = ol.img(class_="myImg", src=pdir + group + "_time.png",
                      alt=group + "Time plot", width="400")
         frame += ol.div(img, style="float:left")
-        frame += ol.div(tabstr)
+        onclick_gen = ("openBand(event, '{}')".format(band)
+                       for band in g_dict['band_list'])
+
+        frame += ol.div(ol.button("Group", class_='v_tablinks', id="defaultOpen",
+                                  onclick="openBand(event, 'group')") +
+                        ol.button(g_dict['band_list'], class_='v_tablinks',
+                                  onclick=onclick_gen),
+                        class_='vertical_tab')
+        frame += ol.div(tab_str, id="v_tabcontent")
+        #todo: inserire lle nuove tabelle
         frame += ol.h2("Spectrum of BRMS time series")
         frame += ol.img(class_="myImg", src=pdir + group + "_psd.png",
                         alt=group + "PSD plot", width="400")

@@ -35,8 +35,8 @@ def main(initfile, ntop):
 
     # copy them in the results folder (that should already exist)
     for sheet in stylesheets:
-        copy2(os.path.dirname(__file__) + '/' + sheet, hdir)
-    copy2(os.path.dirname(__file__) + '/' + script, hdir)
+        copy2(os.path.dirname(os.path.abspath(__file__)) + '/' + sheet, hdir)
+    copy2(os.path.dirname(os.path.abspath(__file__)) + '/' + script, hdir)
 
     # Create summary web page
     print "Generating Web Page..."

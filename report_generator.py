@@ -175,11 +175,12 @@ def main(initfile, ntop):
                        for band in g_dict['band_list'])
 
         frame += ol.div(ol.button("Group", class_='v_tablinks', id="defaultOpen",
-                                  onclick="openBand(event, 'group')") +
+                                  onclick="openBand(event, group)") +
                         ol.button(g_dict['band_list'], class_='v_tablinks',
                                   onclick=onclick_gen),
                         class_='vertical_tab')
-        frame += ol.div(tab_str, id="v_tabcontent")
+        frame += ol.div(tab_str, class_="v_tabcontent",
+                        id=([group]+g_dict['band_list']))
         #todo: inserire lle nuove tabelle
         frame += ol.h2("Spectrum of BRMS time series")
         frame += ol.img(class_="myImg", src=pdir + group + "_psd.png",

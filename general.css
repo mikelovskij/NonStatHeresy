@@ -16,7 +16,7 @@ body
 	color: #000;
 	font-size: 12px;
 	text-decoration: none;
-	line-height: 16px;
+	/*line-height: 16px;*/
 	text-align: justify;
 }
 body, input, select
@@ -39,10 +39,10 @@ p
 {
 	margin: 0 0 5px 0;
 }
-h1, h2, h3, h4
+/*h1, h2, h3, h4
 {
 	text-decoration: underline;
-}
+}*/
 h1
 {
 	font-size: 20px;
@@ -291,6 +291,12 @@ div.tab button.active {
     border: 1px solid #ccc;
     border-top: none;
 }
+/* Use this after trick to make the tab resize accoring to contained floating items size */
+.tabcontent::after {
+    content: "";
+    clear: both;
+    display: table;
+}
 
  /* Style the buttons that are used to open and close the accordion panel */
 button.accordion {
@@ -321,7 +327,8 @@ div.panel {
 
  /* Style the tab */
 div.vertical_tab {
-    float: right;
+    display: inline-block;
+    position:absolute;
     border: 1px solid #ccc;
     background-color: #f1f1f1;
     width: 10%;
@@ -354,10 +361,10 @@ div.vertical_tab button.active {
 
 /* Style the tab content */
 .v_tabcontent {
-    float: left;
+    /*float: left;*/
     padding: 0px 12px;
-    border: 1px solid #ccc;
-    width: 30%;
-    border-left: none;
+    /*border: 1px solid #ccc;*/
+    width: 40%;
+   /* border-left: none;*/
   /*  height: 500px;*/
 }

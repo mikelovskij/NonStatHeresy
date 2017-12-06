@@ -13,12 +13,13 @@ def brms_time_plots(times, g_dict, savepath):
     if max(times) <= 300:
         tunits = 's'
         t = times
-    if (max(times) > 300) and (max(times) <= 60 * 100):
-        t = times / 60
-        tunits = 'min'
-    if max(times) > (60 * 100):
-        t = times / 3600
-        tunits = 'h'
+    else:
+        if (max(times) > 300) and (max(times) <= 60 * 100):
+            t = times / 60
+            tunits = 'min'
+        else:
+            t = times / 3600
+            tunits = 'h'
 
     # Plot the stuff
     _ = plt.figure(figsize=(10, 6))
@@ -77,10 +78,11 @@ def auxiliary_plots(group, aux_dict, g_dict, freqs, ccfs, cohs, mean_cohs,
                 mean_coh = mean_cohs[aux_name][group + '_' + b_name]
                 # TODO: surely some distributions can give a significance estimate of the corrcoef
                 if abs(ccf) >= ccf_thresh:
-                    hi_corr.append((b_name, j))
+                    hi_corr.append((b_name, j, ccf))
                 if np.mean(mean_coh) >= mn_coh_thresh:
-                    hi_coh.append((b_name, j))
-            save_path =plt_path +  group + '_cohe_' + aux_name.split(':')[1] + '.png'
+                    hi_coh.append((b_name, j, mean_coh))
+            save_path = (plt_path + group + '_cohe_' +
+                         aux_name.split(':')[1] + '.png')
             if (len(hi_corr) + len(hi_coh)) > 0:
                 plt.figure(figsize=(15, 6))
                 if len(hi_corr) > 0:
@@ -89,10 +91,10 @@ def auxiliary_plots(group, aux_dict, g_dict, freqs, ccfs, cohs, mean_cohs,
                     gs = grsp.GridSpec(n_cols, 2 * n_rows)
                     gs.update(wspace=0.2, hspace=0.5)
                     for j in xrange(n_cols):
-                        for k, (b_name, b_num) in zip(xrange(n_rows),
-                                                      hi_corr[n_rows * j:
-                                                              n_rows *
-                                                              (j + 1)]):
+                        for k, (b_name, b_num, ccf) in zip(xrange(n_rows),
+                                                           hi_corr[n_rows * j:
+                                                                   n_rows *
+                                                                   (j + 1)]):
                             h = aux_results[aux_name]['histogram'][b_num]
                             # rebuild the bin_grid of the histogram
                             xg, yg = np.mgrid[h[1][0]:h[1][1]:h[1][3] * 1j,
@@ -105,16 +107,17 @@ def auxiliary_plots(group, aux_dict, g_dict, freqs, ccfs, cohs, mean_cohs,
                                            labelsize=6)
                             ax.ticklabel_format(style="sci", scilimits=(0, 0),
                                                 axis="both")
-                            plt.title(b_name)
+                            plt.title("{} CCF ={:.2f}".format(b_name, ccf))
                     ax1 = plt.subplot(gs[0:n_cols, 0:n_rows])
 
                 else:
                     ax1 = plt.subplot2grid((1, 1), (0, 0))
-                for (b_name, b_num) in hi_coh:
+                for (b_name, b_num, mean_coh) in hi_coh:
                     try:
                         coh = cohs[aux_name][group + '_' + b_name]
                         ax1.semilogx(freqs, coh, linewidth=0.5,
-                                     label=b_name)
+                                     label="{} (mn_coh={:.3f}"
+                                     .format(b_name, mean_coh))
                         ax1.axis(ymin=0, ymax=1)
                         ax1.axis(xmin=freqs[0])
                         ax1.grid(True)

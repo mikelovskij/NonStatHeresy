@@ -4,8 +4,8 @@
 
 import numpy as np
 from argparse import ArgumentParser
-from functions import brms_reader, ipsh, extractbands, Parameters,\
-    string_repeater
+from functions import brms_reader, ipsh, string_repeater
+from config_manager import Parameters
 import os
 import cPickle
 from data_processing import DataProcessing
@@ -14,6 +14,7 @@ from time import time, ctime
 import plot_generation
 import report_generator
 
+# todo: revrite including a main method that has to be called in order to be run
 # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ #
 # **************************** Initialization ******************************* #
 # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ #
@@ -64,10 +65,6 @@ par = Parameters(args['initialization'])
 # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ #
 # ++++++++++++++ Prepare the BRMS data for the post-processing ++++++++++++++ #
 # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ #
-
-# Rebuild the band list as a list
-for _, g_dict in par.group_dict.iteritems():
-    extractbands(g_dict)
 # Read the BRMS data stored in the hdf5 file and put it in the group_dict
 gpsb, gpse, fs, segments, times = brms_reader(args['brms_file'],
                                               par.group_dict)

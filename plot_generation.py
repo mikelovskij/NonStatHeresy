@@ -1,5 +1,5 @@
 import cPickle
-from functions import Parameters
+from config_manager import Parameters
 from argparse import ArgumentParser
 from plot_functions import brms_asd_plot, brms_time_plots, auxiliary_plots
 

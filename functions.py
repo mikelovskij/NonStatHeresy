@@ -2,12 +2,7 @@ import h5py
 import numpy
 import inspect
 from IPython.terminal.embed import InteractiveShellEmbed
-import numpy as np
-import virgotools as vrg
-from time import sleep
 import scipy.signal as sig
-import ConfigParser
-import fnmatch
 from collections import OrderedDict
 
 
@@ -29,118 +24,6 @@ def string_repeater(string, n):
     while u < n:
         yield string
         u += 1
-
-
-class Parameters:
-    def __init__(self, initfile):
-        self.cfg = ConfigParser.ConfigParser(
-            {'aux_channel_source': '/virgoData/ffl/rds.ffl'},
-            allow_no_value=True)
-        self.cfg.read(initfile)
-
-        self.aux_source = self.cfg.get('GENERAL', 'aux_channel_source')
-        self.n_groups = self.cfg.getint('GENERAL', 'n_groups')
-        self.all_aux = self.cfg.getboolean('GENERAL', 'all_aux')
-        self.aux = self.cfg.get('GENERAL', 'aux_channels').split(
-            '\n') if self.cfg.get('GENERAL', 'aux_channels') else None
-        self.excluded = self.cfg.get('GENERAL', 'exclude').split(
-            '\n') if self.cfg.get('GENERAL', 'exclude') else None
-        self.nav = self.cfg.getint('GENERAL', 'averages')
-        self.group_dict = OrderedDict()
-        self.aux_dict = {}
-        for group_n in xrange(self.n_groups):
-            sctn = 'GROUP' + str(group_n + 1)
-            self.group_dict[sctn] = {'channel': self.cfg.get(sctn, 'channel'),
-                                     'units': self.cfg.get(sctn, 'units'),
-                                     'bands': self.cfg.get(sctn, 'bands'),
-                                     'aux': self.cfg.get(sctn,
-                                                         'aux_channels').split(
-                                         '\n') if self.cfg.get(sctn,
-                                                               'aux_channels') else None,
-                                     'excl': self.cfg.get(sctn,
-                                                          'exclusions').split(
-                                         '\n') if self.cfg.get(sctn,
-                                                               'exclusions') else None
-                                     }
-        if self.cfg.has_section('RESULTS'):
-            self.res_param = {}
-            for option in self.cfg.options('RESULTS'):
-
-                self.res_param[option] = self.cfg.get('RESULTS', option)
-                # Try to convert them to integers
-                # todo: is there a better way to check if they can be converted?
-                try:
-                    self.res_param[option] = int(self.res_param[option])
-                except ValueError:
-                    pass
-
-    def save_extended_config(self, **kwargs):
-        # todo: other interesting parameters, such as averages, npoints,
-        if not self.cfg.has_section('RESULTS'):
-            self.cfg.add_section('RESULTS')
-        for key, arg in kwargs.iteritems():
-            self.cfg.set('RESULTS', key, arg)
-        with open(kwargs['hdir'] + 'config.ini', mode='w') as f:
-            self.cfg.write(f)
-
-    def extract_aux_channels(self, gpsb):
-        if self.all_aux:
-            chlist = get_channel_list(gpsb, self.aux_source)
-            for aux in chlist:
-                self.aux_dict[aux] = set(self.group_dict.keys())
-        for excl_name in self.excluded or []:
-            try:
-                del (self.aux_dict[excl_name])
-            except KeyError:
-                for aux in self.aux_dict.iterkeys():
-                    if (fnmatch.fnmatch(aux, 'V1:' + excl_name + '*') or
-                       fnmatch.fnmatch(aux, excl_name + '*')):
-                        self.excluded.append(aux)
-        for aux in self.aux or []:
-            self.aux_dict[aux] = set(self.group_dict.keys())
-        for group_name, dic in self.group_dict.iteritems():
-            for excl_name in dic['excl'] or []:
-                try:
-                    self.aux_dict[excl_name].remove(group_name)
-                except KeyError:
-                    for aux in self.aux_dict.iterkeys():
-                        if (fnmatch.fnmatch(aux, 'V1:' + excl_name + '*') or
-                           fnmatch.fnmatch(aux, excl_name + '*')):
-                            try:
-                                self.aux_dict[aux].remove(group_name)
-                            except KeyError:
-                                pass
-            for aux in dic['aux'] or []:
-                try:
-                    self.aux_dict[aux].add(group_name)
-                except KeyError:
-                    self.aux_dict[aux] = {group_name}
-
-
-def retry(f):
-    def wrapper(that, *args):
-        attempts = 0
-        out = None
-        while attempts < 10:
-            try:
-                out = f(that, *args)
-                break
-            except (IOError, vrg.frame_lib.ChannelNotFound) as e:
-                attempts += 1
-                print e
-                sleep(10)
-                if attempts == 10:
-                    raise
-        return out
-
-    return wrapper
-
-
-def extractbands(g_dict):
-    g_dict['band_list'] = []
-    b = g_dict['bands'].split(':')
-    for i in range(len(b) - 1):
-        g_dict['band_list'].append(b[i] + '_' + b[i + 1] + 'Hz')
 
 
 def brms_reader(file_name, group_dict):
@@ -212,6 +95,7 @@ def decimate(x, q, n=None, ftype='iir', axis=-1):
     return y.swapaxes(0, axis)[::q].swapaxes(0, axis)
 
 
+# TODO: update these functions
 def decimator_wrapper(downfreq, ch):
     if ch.fsample < downfreq:
         print "Channels must have a larger or equal sampling frequency than " \
@@ -230,13 +114,3 @@ def decimator_wrapper(downfreq, ch):
             else:
                 c = ch.data
     return c
-
-
-def get_channel_list(gpsb, source):
-    channels = []
-    with vrg.FrameFile(source) as ffl:
-        with ffl.get_frame(gpsb) as frame:
-            for adc in frame.iter_adc():
-                if int(adc.contents.sampleRate) == 50:
-                    channels.append(str(adc.contents.name))
-    return np.array(channels)

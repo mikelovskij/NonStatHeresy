@@ -1,12 +1,12 @@
 import h5py
 from config_manager import Parameters
-from segment_manipulation import check_state_vec, segment_files_reader
+from segment_manipulation import check_state_vec, segment_files_reader, segment_splitter
 from brms_computations import ChannelParameters, process_channel
 from argparse import ArgumentParser
-
+import os
 
 # todo: add an argument parser
-def main(config_file, savedir, segment_params=None, segmentfiles=None):
+def main(config_file, savedir, segment_params=None, segmentfiles=None, max_segment_length=1200):
     par = Parameters(config_file)
     par.merge_bands()
     fname = savedir + '/brms.hdf5'
@@ -39,7 +39,9 @@ def main(config_file, savedir, segment_params=None, segmentfiles=None):
         else:
             raise ValueError('Need to Provide segment parameters'
                              ' or segment files')
-
+    segments = segments.tolist()
+    segment_splitter(segments, max_segment_length)
+    print len(segments)
     for channel, bands in par.channels_bands.iteritems():
         ch_p = ChannelParameters(channel, par)
         results = process_channel(ch_p, par.data_source, segments)
@@ -49,7 +51,7 @@ def main(config_file, savedir, segment_params=None, segmentfiles=None):
         # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ #
         with h5py.File(fname, 'a') as f:
             f.attrs.create('gps', [gpsb, gpse])
-            f.attrs.create('fsample', data=float(ch_p.ds_freq) / (ch_p.n_points * ch_p.overlap))
+            f.attrs.create('fsample', data=float(ch_p.ds_freq) / (ch_p.n_points * (1 - ch_p.overlap)))
             f.attrs.create('segments', data=segments)
             try:
                 g = f.create_group(channel)
@@ -58,8 +60,7 @@ def main(config_file, savedir, segment_params=None, segmentfiles=None):
                 g = f.create_group(channel)
             g.create_dataset('times', data=ch_p.times)
             for band, j in zip(results[1], xrange(len(results[1]))):
-                g.create_dataset('{}_{}Hz'.format(bands[j], bands[j + 1]),
-                                 data=results[0][:][j])
+                g.create_dataset(bands[j], data=results[0][j])
 
 # todo: write the resulting bands in the cfg?
 
@@ -105,7 +106,10 @@ if __name__ == "__main__":
                         help="Launch the nonstatmoni post processing of the "
                              "brmss after the computation")
     args = parser.parse_args()
-
+    try:
+        os.mkdir(args.hdir)
+    except OSError as err:
+        print err
     if args.science_segments_file:
         print "Loading segment files, gpsb, gpse and state channel" \
               " arguments will be ignored"

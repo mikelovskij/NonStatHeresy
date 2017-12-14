@@ -110,3 +110,14 @@ def segment_files_reader(science_segments_file, dq_flags_files):
     gpsb = science_segments[0][0]
     return gpsb, gpse, science_segments
 
+# TODO: per caso potrebbe funziare con un enumerate, o non conta i segmenti aggiunti?
+def segment_splitter(segments, max_segment_length):
+    n_segments = 0
+    for gpsb, gpse in segments:
+            if gpse - gpsb > max_segment_length:
+                ogpse = gpse
+                gpse = gpsb + max_segment_length
+                segments[n_segments] = [gpsb, gpse]
+                segments.append([gpse, ogpse])
+            n_segments += 1
+

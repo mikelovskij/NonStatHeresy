@@ -149,7 +149,7 @@ with open(hdir + 'post_proc_data.dat', mode='w') as f:
 print "Elapsed time %d seconds" % int(time() - start)
 # Generate the plots, one group at a time.
 print "starting the plot generation."
-plot_generation.main(hdir + 'config.ini')
+plot_generation.main(hdir + 'config.ini', ccf_thresh=0.5, mn_coh_thresh=0.25)
 print 'starting the report generation'
 report_generator.main(hdir + 'config.ini', args['ntop'])
 print "Done!, results are located in" + hdir

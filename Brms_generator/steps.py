@@ -66,34 +66,40 @@ class LineRemoval(Steps):
 
     def __init__(self, step_dict):
         # todo: costruisco un buffer?
-        self.n_seg = step_dict['n_segments']
-        self.n_cycles = step_dict['n_cycles']
-        self.n_devs = step_dict['n_deviations']
+        self.n_seg = int(step_dict['n_segments'])
+        self.n_cycles = int(step_dict['n_cycles'])
+        self.n_devs = float(step_dict['n_deviations'])
 
     def __call__(self, pipe):
         log_spectrum = np.log(pipe[1])
         # compute the number of points for each spectrum segment/band
         n = int(np.floor(len(pipe[1]) / self.n_seg))
         # and then the actual number of segments
-        nseg = int(np.floor(len(pipe[1]) / n))
+        n_seg = int(np.floor(len(pipe[1]) / n))
+        extra_points = len(pipe[1]) - n * n_seg
         # Estimate  log spectrum floor from the minimum of each segment
         sp_floor = []
         interp_sp_floor = np.array([])
-        for i in xrange(nseg):
+        for i in xrange(n_seg):
             sp_floor.append(np.min(log_spectrum[i * n:(i + 1) * n]))
             if i != 0:
                 if i == 1:
                     start_segm = np.linspace(
                         sp_floor[0] + (sp_floor[0] - sp_floor[1]) / 2,
-                        sp_floor[0], np.floor(n / 2) + 1)
+                        sp_floor[0], np.floor(n / 2))
                     interp_sp_floor = np.concatenate((interp_sp_floor,
                                                       start_segm))
                 segm = np.linspace(sp_floor[i - 1], sp_floor[i], n)
                 interp_sp_floor = np.concatenate((interp_sp_floor, segm))
+        if extra_points:
+            sp_floor.append(np.min(log_spectrum[(i + 1) * n:]))
+            segm = np.linspace(sp_floor[i], sp_floor[i +1], extra_points)
+            interp_sp_floor = np.concatenate((interp_sp_floor, segm))
         end_segm = np.linspace(
-            sp_floor[-1], sp_floor[1] + (sp_floor[1] - sp_floor[2]) / 2,
+            sp_floor[-1], sp_floor[-1] + (sp_floor[-1] - sp_floor[-2]) / 2,
             np.ceil(n / 2))
         interp_sp_floor = np.concatenate((interp_sp_floor, end_segm))
+
         # Compute the difference between the floor and the log spectrum
         difference_log_spectrum = log_spectrum - interp_sp_floor
         # Remove the peaks from the difference log spectrum
@@ -113,15 +119,19 @@ class LineRemoval(Steps):
 
 
 class BrmsComputation(Steps):
+    parameters = []
     def __init__(self, step_dict):
-        self.band_idxs = (np.floor(step_dict['bands'] /
+        bands = []
+        for band in step_dict['bands']:
+            bands.append(map(int,band.split('Hz')[0].split('_')))
+        self.band_idxs = (np.floor(np.asarray(bands) /
                                    step_dict['f_res'])).astype('int')
         self.n_bands = len(step_dict['bands'])
 
     def __call__(self, pipe):
         brmss = []
         for i in xrange(self.n_bands):
-            band = pipe[1][self.band_idxs[i]:self.band_idxs[i + 1]]
+            band = pipe[1][self.band_idxs[i][0]:self.band_idxs[i][1]]
             # No need to square since it already is a power spectrum
             brmss.append(np.sqrt(np.mean(band, axis=0)))
         actual_bands = pipe[0][self.band_idxs]

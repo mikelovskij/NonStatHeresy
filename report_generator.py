@@ -3,7 +3,7 @@ import markup
 from markup import oneliner as ol
 import tables as tb
 import numpy as np
-from functions import Parameters, ipsh
+from config_manager import Parameters
 import cPickle
 from argparse import ArgumentParser
 from shutil import copy2

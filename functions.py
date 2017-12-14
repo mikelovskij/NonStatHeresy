@@ -4,6 +4,8 @@ import inspect
 from IPython.terminal.embed import InteractiveShellEmbed
 import scipy.signal as sig
 from collections import OrderedDict
+import virgotools as vrg
+from time import sleep
 
 
 # ipshell debugger during run
@@ -94,23 +96,45 @@ def decimate(x, q, n=None, ftype='iir', axis=-1):
         y = sig.lfilter(b, a, x, axis=axis)
     return y.swapaxes(0, axis)[::q].swapaxes(0, axis)
 
-
+# checks that the conditions required for the decimation are met
+# and if true calculates the decimation factor required for the wanted
+# downsampling_frequency and then calls the decimation function
 # TODO: update these functions
-def decimator_wrapper(downfreq, ch):
-    if ch.fsample < downfreq:
+def decimator_wrapper(ds_freq, ch):
+    f_sample = round(ch.fsample, 5)
+    ds_freq = round(ds_freq, 5)
+    if f_sample < ds_freq:
         print "Channels must have a larger or equal sampling frequency than " \
               "the desired downsampled freq"
         raise ValueError
     else:
-        if ch.fsample % downfreq != 0:
-            print "Sampling frequency must be equal or an integer " \
-                  "multiple of the downsampled frequency"
-            raise ValueError
+        if f_sample % ds_freq != 0:
+            err  = ("Sampling frequency {:f} must be equal or an integer " \
+                  "multiple of the downsampled frequency {:f} {:f}".format(f_sample, ds_freq, f_sample % ds_freq))
+            raise ValueError(err)
         else:
-            if ch.fsample > downfreq:
-                decimfactor = ch.fsample / downfreq
+            if f_sample > ds_freq:
+                decimfactor = f_sample / ds_freq
                 # print "Decimation factor {0}".format(decimfactor)
                 c = decimate(ch.data, int(decimfactor))
             else:
                 c = ch.data
     return c
+
+def retry(f):
+    def wrapper(that, *args):
+        attempts = 0
+        out = None
+        while attempts < 10:
+            try:
+                out = f(that, *args)
+                break
+            except (IOError, vrg.frame_lib.ChannelNotFound) as e:
+                attempts += 1
+                print e
+                sleep(10)
+                if attempts == 10:
+                    raise
+        return out
+
+    return wrapper

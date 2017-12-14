@@ -55,9 +55,10 @@ def process_channel(ch_p, src, segments):
         step_instances.append(step['class'](step))
     brms_buffer = []
     for (j, (gpsb, gpse)) in enumerate(segments):
+        print 'segment {} of {}'.format(j, len(segments))
         with vrg.getChannel(src, ch_p.channel, gpsb, gpse - gpsb) as r_data:
             # Decimate the channel data
-            ch_data = decimator_wrapper(r_data, ch_p.ds_freq)
+            ch_data = decimator_wrapper(ch_p.ds_freq, r_data)
         fft_per_segment = ch_p.compute_n_fft(len(ch_data))
         # Estimate the time vector of the brms samples for this seg
         t_disc = ch_p.compute_time_vector(fft_per_segment, gpsb)
@@ -77,12 +78,13 @@ def process_channel(ch_p, src, segments):
                                  nperseg=ch_p.n_points)
             pipe = (freqs, s)
             for step in step_instances:
-                print "Processing step {} for channel {}".format(step,
-                                                                 ch_p.channel)
+
                 pipe = step(pipe)
                 # todo:use an hdf5 buffer between segments?probably unnecessary
             brms_buffer.append(pipe[1])
             real_bands = pipe[0]
+    # transpose the buffer in order for it to be used
+    brms_buffer = np.array(brms_buffer).T.tolist()
     return brms_buffer, real_bands
 
 

@@ -3,7 +3,7 @@ import fnmatch
 from Brms_generator.steps import Steps
 import virgotools as vrg
 import numpy as np
-
+from collections import OrderedDict
 
 class Parameters:
     def __init__(self, initfile):
@@ -23,12 +23,11 @@ class Parameters:
         self.steps = self.cfg.get('BRMS', 'steps').split('\n')
         self.channels_bands = {}
         steps = Steps()
-        self.step_dict = {}
-        for step_name, step in steps.step_dict.iteritems():
-            if step_name in self.steps:
-                self.step_dict[step_name] = {'class': step}
-                for param in step.parameters:
-                    self.step_dict[step_name][param] = self.cfg.get(step_name,
+        self.step_dict = OrderedDict()
+        for step in self.steps:
+            self.step_dict[step] = {'class': steps.step_dict[step]}
+            for param in steps.step_dict[step].parameters:
+                    self.step_dict[step][param] = self.cfg.get(step,
                                                                     param)
 
         # get the post_processing parameters

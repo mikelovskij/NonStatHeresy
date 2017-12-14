@@ -18,12 +18,12 @@ class MovingMedian(Steps):
     parameters = ['n_medians']
 
     def __init__(self, step_dict):
-        self.buffer_size = step_dict['n_medians']
+        self.buffer_size = int(step_dict['n_medians'])
         self.median_buffer = []
 
     def __call__(self, pipe):
         self.median_buffer.append(pipe[1])
-        if len(self.median_buffer) > self.buffer_size:
+        if (len(self.median_buffer) > self.buffer_size):
             self.median_buffer.pop(0)
         return pipe[0], np.median(self.median_buffer, axis=0)
 
@@ -38,7 +38,7 @@ class MovingAverage(Steps):
     parameters = ['n_averages']
 
     def __init__(self, step_dict):
-        self.buffer_size = step_dict['n_averages']
+        self.buffer_size = int(step_dict['n_averages'])
         self.average_buffer = []
         self.sum = None
 

@@ -2,6 +2,7 @@ import numpy as np
 import virgotools as vrg
 import scipy.signal as sig
 from functions import decimator_wrapper
+from time import time
 __author__ = 'Michele Valentini snao20@hotmail.com'
 
 
@@ -54,12 +55,16 @@ def process_channel(ch_p, src, segments):
     for step in ch_p.steps.itervalues():
         step_instances.append(step['class'](step))
     brms_buffer = []
+    step_times = np.zeros(len(step_instances))
+    fft_time = 0
+    append_time = 0
     for (j, (gpsb, gpse)) in enumerate(segments):
         print 'segment {} of {}'.format(j, len(segments))
         with vrg.getChannel(src, ch_p.channel, gpsb, gpse - gpsb) as r_data:
             # Decimate the channel data
             ch_data = decimator_wrapper(ch_p.ds_freq, r_data)
         fft_per_segment = ch_p.compute_n_fft(len(ch_data))
+        print fft_per_segment
         # Estimate the time vector of the brms samples for this seg
         t_disc = ch_p.compute_time_vector(fft_per_segment, gpsb)
         # Reset the buffers if there is a time discontinuity between
@@ -68,21 +73,33 @@ def process_channel(ch_p, src, segments):
             for step in step_instances:
                 step.reset()
         # make a function with the spectra as output?
-        # il ciclo su fft_per segment lo terrei cmq qui. o no?
+        # il ciclo su fft_per segment lo terrei cmq qui. o no?        
         for i in xrange(fft_per_segment):
+            if i%100 == 1:
+                print "FFt number {} of segment {} of {}".format(i, j, len(segments))
+                tot_time = float(fft_time + append_time + np.sum(step_times))/100
+                print "FFT time: {:.2f}%, step time = {:.2f}%, append time = {:.2f}%".format(fft_time/tot_time, np.sum(step_times)/tot_time, append_time/tot_time)
+            t_0 = time()
             freqs, s = sig.welch(ch_data[i * ch_p.n_over_points:
                                          i * ch_p.n_over_points +
                                          ch_p.n_points],
                                  fs=ch_p.ds_freq,
                                  window='hanning',
                                  nperseg=ch_p.n_points)
-            pipe = (freqs, s)
-            for step in step_instances:
-
+            fft_time += time() - t_0
+            pipe = (freqs, s)            
+            for k, step in enumerate(step_instances):
+                if i%100 == 1:
+                    print step
+                    print "step fraction time:{:.2f}".format(float(step_times[k] * 100) /np.sum(step_times))
+                t_0 = time()
                 pipe = step(pipe)
+                step_times[k] += time() - t_0
                 # todo:use an hdf5 buffer between segments?probably unnecessary
+            t_0 = time()
             brms_buffer.append(pipe[1])
             real_bands = pipe[0]
+            append_time += time() - t_0
     # transpose the buffer in order for it to be used
     brms_buffer = np.array(brms_buffer).T.tolist()
     return brms_buffer, real_bands

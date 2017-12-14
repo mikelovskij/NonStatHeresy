@@ -1,15 +1,17 @@
 import h5py
 from config_manager import Parameters
-from segment_manipulation import check_state_vec, segment_files_reader, segment_splitter
+from segment_manipulation import check_state_vec, segment_files_reader,\
+    segment_splitter
 from brms_computations import ChannelParameters, process_channel
 from argparse import ArgumentParser
 import os
 
+
 # todo: add an argument parser
-def main(config_file, savedir, segment_params=None, segmentfiles=None, max_segment_length=1200):
+def main(config_file, savedir, segment_params=None, segmentfiles=None,
+         max_segment_length=1200):
     par = Parameters(config_file)
     par.merge_bands()
-    fname = savedir + '/brms.hdf5'
     # Load the segments to use from segment files or
     # generate them from a channel and a threshold
     if segment_params:
@@ -42,6 +44,13 @@ def main(config_file, savedir, segment_params=None, segmentfiles=None, max_segme
     segments = segments.tolist()
     segment_splitter(segments, max_segment_length)
     print len(segments)
+    f_res = float(2 * par.max_freq) / par.n_points
+    res_dir = savedir + "/ {:d} - {:d} - resolution {:.3f}".format(gpsb, gpse, f_res)
+    try:
+        os.mkdir(res_dir)
+    except OSError as er:
+        print er
+    fname = res_dir + '/brms.hdf5'
     for channel, bands in par.channels_bands.iteritems():
         ch_p = ChannelParameters(channel, par)
         results = process_channel(ch_p, par.data_source, segments)

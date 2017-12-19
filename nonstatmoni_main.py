@@ -43,8 +43,8 @@ if args['hdir']:
     hdir = args['hdir']
 else:
     # set up a default result directory
-    basedir = os.path.dirname(os.path.abspath(__file__))
-    hdir = basedir + '/Results/{}/'.format(args['brms_file'].split('/')[-2])
+    basedir = os.path.dirname(os.path.abspath(args['brms_file']))
+    hdir = basedir + '/Report/'
     print "No result directory provided, results will be saved in" + hdir
 # relative path (to hdir) of the plots folder
 pdir = 'plots/'
@@ -149,7 +149,7 @@ with open(hdir + 'post_proc_data.dat', mode='w') as f:
 print "Elapsed time %d seconds" % int(time() - start)
 # Generate the plots, one group at a time.
 print "starting the plot generation."
-plot_generation.main(hdir + 'config.ini', ccf_thresh=0.5, mn_coh_thresh=0.25)
+plot_generation.main(hdir + 'config.ini', ccf_thresh=0.5, mn_coh_thresh=0.05)
 print 'starting the report generation'
 report_generator.main(hdir + 'config.ini', args['ntop'])
 print "Done!, results are located in" + hdir

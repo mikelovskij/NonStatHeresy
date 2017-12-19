@@ -43,18 +43,17 @@ class MovingAverage(Steps):
         self.sum = None
 
     def __call__(self, pipe):
-        self.average_buffer.append(pipe[1])
+        self.average_buffer.append(np.asarray(pipe[1]))
         if len(self.average_buffer) > self.buffer_size:
             self.sum = np.sum((self.sum, pipe[1],
                                - self.average_buffer[0]), axis=0)
             self.average_buffer.pop(0)
         else:
-            if self.sum:
+            if self.sum is not None:
                 self.sum = np.sum((self.sum, pipe[1]), axis=0)
             else:
                 self.sum = pipe[1]
-
-        return pipe[0], self.sum/len(self.average_buffer)
+        return pipe[0], np.divide(self.sum, len(self.average_buffer))
 
     def reset(self):
         self.average_buffer = []

@@ -45,8 +45,9 @@ def main(config_file, savedir, segment_params=None, segmentfiles=None,
     segment_splitter(segments, max_segment_length)
     print len(segments)
     f_res = float(2 * par.max_freq) / par.n_points
-    res_dir = savedir + "/ {:d} - {:d} - resolution {:.3f}".format(gpsb, gpse, f_res)
+    res_dir = savedir + "/ {:d} - {:d} - resolution {:.3f} - npoints {}, overlap {:.2f}".format(gpsb, gpse, f_res, par.overlap, par.n_points)
     try:
+        print "Creating directory {}".format(res_dir)
         os.mkdir(res_dir)
     except OSError as er:
         print er
@@ -116,6 +117,7 @@ if __name__ == "__main__":
                              "brmss after the computation")
     args = parser.parse_args()
     try:
+        print "Creating directory {}".format(args.hdir)
         os.mkdir(args.hdir)
     except OSError as err:
         print err

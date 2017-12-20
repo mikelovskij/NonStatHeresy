@@ -76,9 +76,14 @@ def process_channel(ch_p, src, segments):
         # il ciclo su fft_per segment lo terrei cmq qui. o no?        
         for i in xrange(fft_per_segment):
             if i%100 == 1:
-                print "FFt number {} of segment {} of {}".format(i, j, len(segments))
-                tot_time = float(fft_time + append_time + np.sum(step_times))/100
-                print "FFT time: {:.2f}%, step time = {:.2f}%, append time = {:.2f}%".format(fft_time/tot_time, np.sum(step_times)/tot_time, append_time/tot_time)
+                print "FFt number {} of segment {} of {}".format(i, j,
+                                                                 len(segments))
+                tot_time = fft_time + append_time + np.sum(step_times)
+                perc_time = float(tot_time)/100
+                print "FFT time: {:.2f}%, step time = {:.2f}%, append time" \
+                      " = {:.2f}%".format(fft_time/perc_time,
+                                          np.sum(step_times)/perc_time,
+                                          append_time/perc_time)
             t_0 = time()
             freqs, s = sig.welch(ch_data[i * ch_p.n_over_points:
                                          i * ch_p.n_over_points +

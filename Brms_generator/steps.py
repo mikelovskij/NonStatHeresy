@@ -1,5 +1,5 @@
 import numpy as np
-
+import scipy.signal as sig
 
 class Steps(object):
     def __init__(self):
@@ -122,7 +122,7 @@ class BrmsComputation(Steps):
     def __init__(self, step_dict):
         bands = []
         for band in step_dict['bands']:
-            bands.append(map(int,band.split('Hz')[0].split('_')))
+            bands.append(map(int, band.split('Hz')[0].split('_')))
         self.band_idxs = (np.floor(np.asarray(bands) /
                                    step_dict['f_res'])).astype('int')
         self.n_bands = len(step_dict['bands'])
@@ -135,3 +135,29 @@ class BrmsComputation(Steps):
             brmss.append(np.sqrt(np.mean(band, axis=0)))
         actual_bands = pipe[0][self.band_idxs]
         return actual_bands, brmss
+
+
+class LowPass(Steps):
+    # This class generates a bessel low pass filter and applies it to the data
+    # Can be applied to both spectra and already computed brms vectors
+    parameters = ['order', 'cutoff']
+
+    def __init__(self, step_dict):
+        # set the filter b, a cohefficients
+        self.filter = sig.bessel(step_dict['order'], step_dict['cutoff'])
+        # set steady state-like step response initial condition
+        self.init = sig.lfilter_zi(self.filter[0], self.filter[1])
+        # todo: opzione a: filtrare un elemento alla volta (se funzia)
+        # todo: opzione b: fare un buffer e applicare il filtro ogni x cicli
+        # todo: in questo caso, ritornare pezzo del risultato ad ogni ciclo.
+        # todo: problema: si aumenta il delay un sacco ( a meno che non si trovi un modo per fare uno shift)
+
+    def __call__(self, pipe):
+        # filter the data and update the filter delays in order to
+        # remember the previous steps
+        y, self.init = sig.lfilter(self.filter[0], self.filter[1],
+                                   [pipe[1]], axis=0, zi=self.init)
+        return pipe[0], y
+
+    def reset(self):
+        self.init = sig.lfilter_zi(self.filter[0], self.filter[1])

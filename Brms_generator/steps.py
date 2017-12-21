@@ -1,5 +1,6 @@
 import numpy as np
 import scipy.signal as sig
+from functions import ipsh
 
 class Steps(object):
     def __init__(self):
@@ -144,9 +145,11 @@ class LowPass(Steps):
 
     def __init__(self, step_dict):
         # set the filter b, a cohefficients
-        self.filter = sig.bessel(step_dict['order'], step_dict['cutoff'])
+        self.filter = sig.bessel(int(step_dict['order']), float(step_dict['cutoff']))
         # set steady state-like step response initial condition
+        # in order to give the right value it will need to be multiplied by the first value processed
         self.init = sig.lfilter_zi(self.filter[0], self.filter[1])
+        self.first = True
         # todo: opzione a: filtrare un elemento alla volta (se funzia)
         # todo: opzione b: fare un buffer e applicare il filtro ogni x cicli
         # todo: in questo caso, ritornare pezzo del risultato ad ogni ciclo.
@@ -155,9 +158,13 @@ class LowPass(Steps):
     def __call__(self, pipe):
         # filter the data and update the filter delays in order to
         # remember the previous steps
+        if self.first:    
+            self.init = np.ones((len(self.init), len(pipe[1])))*self.init*pipe[1]
+            self.first = False
         y, self.init = sig.lfilter(self.filter[0], self.filter[1],
                                    [pipe[1]], axis=0, zi=self.init)
-        return pipe[0], y
+        return pipe[0], y[0]
 
     def reset(self):
         self.init = sig.lfilter_zi(self.filter[0], self.filter[1])
+        self.first = True

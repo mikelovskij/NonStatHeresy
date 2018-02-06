@@ -1,7 +1,7 @@
 import numpy as np
 import scipy.signal as sig
 import virgotools as vrg
-from functions import decimate, retry, ipsh # TODO: aggiornare un po' sto decimate dai
+from functions import retry, ipsh, decimator_wrapper # TODO: aggiornare un po' sto decimate dai
 import scipy.sparse as sp
 
 # Class for the post_processing of the brms data with auxillary channels
@@ -36,27 +36,6 @@ class DataProcessing:
         gpse_index = np.argmin(abs(self.times - gpse))
         return fft_per_segment, gpsb_index, gpse_index
 
-    # checks that the conditions required for the decimation are met
-    # and if true calculates the decimation factor required for the wanted
-    # downsampling_frequency and then calls the decimation function
-    def decimator_wrapper(self, ch):
-        if ch.fsample < self.down_freq:
-            print "Channels must have a larger or equal sampling frequency " \
-                  "than the desired downsampled freq"
-            raise ValueError
-        else:
-            if ch.fsample % self.down_freq != 0:
-                print "Sampling frequency must be equal or an integer " \
-                      "multiple of the downsampled frequency"
-                raise ValueError
-            else:
-                if ch.fsample > self.down_freq:
-                    decimfactor = ch.fsample / self.down_freq
-                    # print "Decimation factor {0}".format(decimfactor)
-                    c = decimate(ch.data, int(decimfactor))
-                else:
-                    c = ch.data
-        return c
 
     # computes the psds for the various brmss and stores them in a dictionary
     def cumulative_psd_computation(self):
@@ -73,6 +52,12 @@ class DataProcessing:
                 for (gpsb, gpse), j in zip(self.segments,
                                            xrange(self.nsegments)):
                     fft_per_segm, start, end = self.segment_indexes(gpsb, gpse)
+                    #print "fftperseg"
+                    #print fft_per_segm
+                    #print "npoints"
+                    #print self.n_points
+                    #print "end-start"
+                    #print end - start
                     for i in xrange(fft_per_segm):
                         self.freqs, spec = sig.welch(
                             brms[start + i * self.n_points:
@@ -261,6 +246,6 @@ class DataProcessing:
     def get_channel_data(self, data_source, channel, gpsb, gpse):
         # TODO: extract other stuff from ch i.e. the units?
         with vrg.getChannel(data_source, channel, gpsb, gpse - gpsb) as ch:
-            data = self.decimator_wrapper(ch)
+            data = decimator_wrapper(self.down_freq, ch)
         return data
 

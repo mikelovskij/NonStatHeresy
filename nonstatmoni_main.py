@@ -4,8 +4,8 @@
 
 import numpy as np
 from argparse import ArgumentParser
-from functions import brms_reader, ipsh, extractbands, Parameters,\
-    string_repeater
+from functions import brms_reader, ipsh, string_repeater
+from config_manager import Parameters
 import os
 import cPickle
 from data_processing import DataProcessing
@@ -14,6 +14,7 @@ from time import time, ctime
 import plot_generation
 import report_generator
 
+# todo: revrite including a main method that has to be called in order to be run
 # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ #
 # **************************** Initialization ******************************* #
 # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ #
@@ -42,8 +43,8 @@ if args['hdir']:
     hdir = args['hdir']
 else:
     # set up a default result directory
-    basedir = os.path.dirname(os.path.abspath(__file__))
-    hdir = basedir + '/Results/{}/'.format(args['brms_file'].split('/')[-2])
+    basedir = os.path.dirname(os.path.abspath(args['brms_file']))
+    hdir = basedir + '/Report/'
     print "No result directory provided, results will be saved in" + hdir
 # relative path (to hdir) of the plots folder
 pdir = 'plots/'
@@ -64,10 +65,6 @@ par = Parameters(args['initialization'])
 # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ #
 # ++++++++++++++ Prepare the BRMS data for the post-processing ++++++++++++++ #
 # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ #
-
-# Rebuild the band list as a list
-for _, g_dict in par.group_dict.iteritems():
-    extractbands(g_dict)
 # Read the BRMS data stored in the hdf5 file and put it in the group_dict
 gpsb, gpse, fs, segments, times = brms_reader(args['brms_file'],
                                               par.group_dict)
@@ -152,7 +149,7 @@ with open(hdir + 'post_proc_data.dat', mode='w') as f:
 print "Elapsed time %d seconds" % int(time() - start)
 # Generate the plots, one group at a time.
 print "starting the plot generation."
-plot_generation.main(hdir + 'config.ini')
+plot_generation.main(hdir + 'config.ini', ccf_thresh=0.5, mn_coh_thresh=0.05)
 print 'starting the report generation'
 report_generator.main(hdir + 'config.ini', args['ntop'])
 print "Done!, results are located in" + hdir

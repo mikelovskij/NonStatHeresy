@@ -3,7 +3,7 @@ import markup
 from markup import oneliner as ol
 import tables as tb
 import numpy as np
-from functions import Parameters
+from config_manager import Parameters
 import cPickle
 from argparse import ArgumentParser
 from shutil import copy2
@@ -35,8 +35,8 @@ def main(initfile, ntop):
 
     # copy them in the results folder (that should already exist)
     for sheet in stylesheets:
-        copy2(os.path.dirname(__file__) + '/' + sheet, hdir)
-    copy2(os.path.dirname(__file__) + '/' + script, hdir)
+        copy2(os.path.dirname(os.path.abspath(__file__)) + '/' + sheet, hdir)
+    copy2(os.path.dirname(os.path.abspath(__file__)) + '/' + script, hdir)
 
     # Create summary web page
     print "Generating Web Page..."
@@ -67,8 +67,8 @@ def main(initfile, ntop):
             pagename = 'cohe_{}.html'.format(chan_band.split('_')[0])
             page.td(style="width:10%; font-size :11px;")
 
-            page.add("<a target=_blank href={}>{}</a><br>(ccf={:3f})"
-                     .format(pagename, chan_band, ccf))
+            page.add("<a target=_blank href={}#{}>{}</a><br>(ccf={:3f})"
+                     .format(pagename, aux_name.split(':')[1], chan_band, ccf))
             page.td.close()
 
         page.td()
@@ -78,8 +78,8 @@ def main(initfile, ntop):
         for chan_band, coh in mean_coh_sorted.items()[0:4]:
             pagename = 'cohe_{}.html'.format(chan_band.split('_')[0])
             page.td(style="width:10%; font-size:11px;")
-            page.add('<a target=_blank href={}>{}</a><br>(mncoh={:3f})'
-                     .format(pagename, chan_band, coh))
+            page.add('<a target=_blank href={}#{}>{}</a><br>(mncoh={:3f})'
+                     .format(pagename, aux_name.split(':')[1], chan_band, coh))
             page.td.close()
 
         page.tr.close()
@@ -99,7 +99,8 @@ def main(initfile, ntop):
         cohtab = {group: np.zeros(ntop)}
         ccftab_names = {group: np.zeros(ntop, dtype='string')}
         cohtab_names = {group: np.zeros(ntop, dtype='string')}
-        for aux_n, aux_name, aux_groups in enumerate(data.aux_dict.iteritems()):
+        cohe_page_name = 'cohe_{}.html'.format(group)
+        for aux_n, (aux_name, aux_groups) in enumerate(data.aux_dict.iteritems()):
             if group in aux_groups:
                 for band in g_dict['band_list']:
                     if aux_n == 0:
@@ -145,48 +146,72 @@ def main(initfile, ntop):
         tab = [[" CCF ", "Coherence"]]
         for i in xrange(ntop):
             row = [
-                "{0}<br>CCFs = {1}".format(ccftab_names[group][i],
-                                           ccftab[group][i]),
-                "{0}<br>Mean Coher. = {1}".format(cohtab_names[group][i],
-                                                  cohtab[group][i])]
+                "<a target=_blank href={0}#{1}>{2}</a><br>CCFs = {3:.2f}"
+                .format(cohe_page_name,
+                        ccftab_names[group][i].split(' ')[0].split(':')[1],
+                        ccftab_names[group][i],
+                        ccftab[group][i]),
+                "<a target=_blank href={0}#{1}>{2}</a>"
+                "<br>Mean Coher. = {3:.3f}"
+                .format(cohe_page_name,
+                        cohtab_names[group][i].split(' ')[0].split(':')[1],
+                        cohtab_names[group][i],
+                        cohtab[group][i])
+                    ]
             tab.append(row)
-        tab_str = {group: tb.tabmaker(tab, True, False)}
+        tab_str = OrderedDict({group: tb.tabmaker(tab, True, False)})
 
         for band in g_dict['band_list']:
             tab = [[" CCF ", "Coherence"]]
             for i in xrange(ntop):
                 row = [
-                    "{0}<br>CCFs = {1}".format(ccftab_names[band][i],
-                                               ccftab[band][i]),
-                    "{0}<br>Mean Coher. = {1}".format(cohtab_names[band][i],
-                                                      cohtab[band][i])]
+                    "<a target=_blank href={0}#{1}>{2}</a><br>CCFs = {3:.2f}"
+                    .format(cohe_page_name,
+                            ccftab_names[band][i].split(':')[1],
+                            ccftab_names[band][i],
+                            ccftab[band][i]),
+                    "<a target=_blank href={0}#{1}>{2}</a>"
+                    "<br>Mean Coher. = {3:.3f}"
+                    .format(cohe_page_name,
+                            cohtab_names[band][i].split(':')[1],
+                            cohtab_names[band][i],
+                            cohtab[band][i])
+                        ]
                 tab.append(row)
             tab_str[band] = tb.tabmaker(tab, True, False)
 
         # build the rest of the frame
-        frame = ol.h1("NonStatMoni BRMS for {} GPS {:d} - {:d}".format(
-                      g_dict['channel'], gpsb, gpse))
-        frame += ol.h2("Normalized BRMS time series")
+        frame = ol.div(ol.h1("NonStatMoni BRMS for {} GPS {:d} - {:d}".format(
+                      g_dict['channel'], gpsb, gpse), style="display:inline") +
+                       ol.h3(ol.a("Coherences with slow channels",
+                                  target='_blank',
+                                  href=cohe_page_name),
+                             style="display:inline"))
         # todo: normalized by what?
-        img = ol.img(class_="myImg", src=pdir + group + "_time.png",
-                     alt=group + "Time plot", width="400")
-        frame += ol.div(img, style="float:left")
+        time_title = ol.h2("Normalized BRMS time series")
+        time_img = ol.img(class_="myImg", src=pdir + group + "_time.png",
+                          alt=group + "Time plot", width="400")
+        spec_title = ol.h2("Spectrum of BRMS time series")
+        spec_img = ol.img(class_="myImg", src=pdir + group + "_psd.png",
+                          alt=group + "PSD plot", width="400")
+        frame += ol.div(time_title + time_img + spec_title + spec_img,
+                        style="float:left")
+        tab_title_gen = (ol.h2("Best Correlations"
+                               " and best Coherences for {}"
+                               .format(c)) for c in ([group] +
+                                                     g_dict['band_list']))
+        frame += ol.div((title + tbl for title, tbl in zip(tab_title_gen,
+                                                           tab_str.values())),
+                        class_="v_tabcontent",
+                        id=(['v_' + group]+g_dict['band_list']))
         onclick_gen = ("openBand(event, '{}')".format(band)
-                       for band in g_dict['band_list'])
+                       for band in (['v_' + group] + g_dict['band_list']))
 
-        frame += ol.div(ol.button("Group", class_='v_tablinks', id="defaultOpen",
-                                  onclick="openBand(event, 'group')") +
-                        ol.button(g_dict['band_list'], class_='v_tablinks',
-                                  onclick=onclick_gen),
+        frame += ol.div(ol.button([group] + g_dict['band_list'],
+                                  class_='v_tablinks',
+                                  onclick=onclick_gen, id=['defaultOpen', '']),
                         class_='vertical_tab')
-        frame += ol.div(tab_str, id="v_tabcontent")
-        #todo: inserire lle nuove tabelle
-        frame += ol.h2("Spectrum of BRMS time series")
-        frame += ol.img(class_="myImg", src=pdir + group + "_psd.png",
-                        alt=group + "PSD plot", width="400")
-        cohe_page_name = 'cohe_{}.html'.format(group)
-        frame += ol.h2(ol.a("Coherences with slow channels", target='_blank',
-                            href=cohe_page_name))
+
         page.div(frame, id=group, class_='tabcontent')
 
         # create coherence subpage
@@ -195,9 +220,10 @@ def main(initfile, ntop):
         page2.h1("Coherences with slow channels")
         for aux_name, aux_groups in data.aux_dict.iteritems():
             if group in aux_groups:
-                page2.img(src=(pdir + group + '_' + 'cohe_' +
-                               aux_name.split(':')[1] + '.png'),
-                          alt=(" No plots for" + aux_name))
+                page2.div(ol.img(src=(pdir + group + '_' + 'cohe_' +
+                          aux_name.split(':')[1] + '.png'),
+                          alt=(" No plots for" + aux_name)),
+                          id=aux_name.split(':')[1])
         page2.savehtml(hdir + cohe_page_name)
 
     # create the modal for the plot images

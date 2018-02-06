@@ -1,5 +1,5 @@
 import cPickle
-from functions import Parameters
+from config_manager import Parameters
 from argparse import ArgumentParser
 from plot_functions import brms_asd_plot, brms_time_plots, auxiliary_plots
 
@@ -20,7 +20,7 @@ class Data:
 
 
 # Plot generating function
-def main(initialization):
+def main(initialization, ccf_thresh=0.5, mn_coh_thresh=0.05):
     par = Parameters(initialization)
     gpsb = par.res_param['gpsb']
     gpse = par.res_param['gpse']
@@ -38,7 +38,7 @@ def main(initialization):
         # mean coherence or correlation cohefficient surpasses a threshold
         auxiliary_plots(group, data.aux_dict, g_dict, data.freqs, data.ccfs,
                         data.cohs, data.mean_cohs, data.aux_results, gpsb,
-                        gpse, hdir + pdir, ccf_thresh=0.5, mn_coh_thresh=0.05)
+                        gpse, hdir + pdir, ccf_thresh=ccf_thresh, mn_coh_thresh=mn_coh_thresh)
 
 if __name__ == "__main__":
     # read configuration options and dataess
@@ -46,6 +46,12 @@ if __name__ == "__main__":
     parser.add_argument("-i", "--init", dest="initialization",
                         default='NonStatMoni.ini',
                         help="set initialization FILE", metavar="cfgFILE")
+    parser.add_argument("-ccf", "--ccf_threshold", dest="ccf_thresh", 
+                        help="set minimum correlation cohefficient condition for the correlation plots",
+                        metavar="CCF_THRESHOLD", type=float, default= 0.5)
+    parser.add_argument("-coh", "--mean_coh_threshold", dest="mn_coh_thresh", 
+                        help="set minimum mean coherence condition for the coherence plots",
+                        metavar="COH_THRESHOLD", type=float, default= 0.05)
     args = vars(parser.parse_args())
     # launch main function
-    main(args['initialization'])
+    main(args['initialization'], args['ccf_thresh'], args['mn_coh_thresh'])

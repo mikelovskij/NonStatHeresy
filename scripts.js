@@ -50,7 +50,7 @@ function openBand(evt, bandName) {
     for (i = 0; i < tablinks.length; i++) {
         tablinks[i].className = tablinks[i].className.replace(" active", "");
     }
-    document.getElementById(bandName).style.display = "block";
+    document.getElementById(bandName).style.display = "inline-block";
     evt.currentTarget.className += " active";
 }
 

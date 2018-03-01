@@ -9,7 +9,7 @@ import os
 
 # todo: add an argument parser
 def main(config_file, savedir, segment_params=None, segmentfiles=None,
-         max_segment_length=1200):
+         max_segment_length=4800):
     par = Parameters(config_file)
     par.merge_bands()
     # Load the segments to use from segment files or

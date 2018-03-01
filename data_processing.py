@@ -144,7 +144,7 @@ class DataProcessing:
                 for i in xrange(fft_per_segm):
                     s_start = seg[0] + i * self.n_over_points
                     s_end = s_start + self.n_points
-                    _, psdtemp = sig.welch(aux_data[start:end],
+                    _, psdtemp = sig.welch(aux_data[s_start:s_end],
                                            fs=self.down_freq,
                                            window='hanning',
                                            nperseg=self.n_points)
@@ -155,9 +155,7 @@ class DataProcessing:
                         band_data = self.group_dic[group]['brms_data'][band][
                                     start + s_start: start + s_end]
                         _, csdtemp = sig.csd(band_data,
-                                             aux_data[
-                                             i * self.n_points: (i + 1) *
-                                                                self.n_points],
+                                             aux_data[s_start: s_end],
                                              fs=self.down_freq,
                                              window='hanning',
                                              nperseg=self.n_points)

@@ -68,7 +68,7 @@ def decimate(x, q, n=None, ftype='iir', axis=-1):
 
     if type(q) != type(1):
         print "q should be an integer"
-        raise
+        raise ValueError
 
     # check if the user is asking for too large decimation factor
     if q > 10:

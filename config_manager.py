@@ -39,6 +39,9 @@ class Parameters:
         self.excluded = self.cfg.get('GENERAL', 'exclude').split(
             '\n') if self.cfg.get('GENERAL', 'exclude') else None
         self.nav = self.cfg.getint('GENERAL', 'averages')
+        self.coherence_overlap = self.cfg.getfloat('GENERAL',
+                                                   'coherence_overlap')
+        self.outliers_frac = self.cfg.getint('GENERAL', 'outliers_threshold')
         self.group_dict = {}
         self.aux_dict = {}
         for group_n in xrange(self.n_groups):

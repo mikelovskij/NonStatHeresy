@@ -72,7 +72,8 @@ par.extract_aux_channels(gpsb)
 print "Analyzing lock between %d and %d" % (gpsb, gpse)
 
 # Coalesce the segments if they are too short.
-approx_fft_duration = int(np.floor(float(gpse - gpsb) / par.nav))
+approx_fft_duration = int(np.floor(float(gpse - gpsb) / ((1 - par.coherence_overlap) *
+                                                         par.nav)))
 seg_mask = np.ones(len(segments), dtype=bool)
 for j in xrange(len(segments) - 1):
     if (segments[j][1] == segments[j + 1][0]) and (
@@ -88,7 +89,8 @@ segments = segments[seg_mask]
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++#
 
 # Allocate the post processing class
-proc = DataProcessing(segments, fs, par.nav, par.group_dict, times)
+proc = DataProcessing(segments, fs, par.nav, par.group_dict, times,
+                      par.outliers_frac, par.coherence_overlap)
 
 # Process the brms bands psd and mean and square mean.
 proc.cumulative_psd_computation()

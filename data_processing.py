@@ -4,9 +4,11 @@ import virgotools as vrg
 from functions import retry, ipsh, decimator_wrapper # TODO: aggiornare un po' sto decimate dai
 import scipy.sparse as sp
 
+
 # Class for the post_processing of the brms data with auxillary channels
 class DataProcessing:
-    def __init__(self, segments, down_freq, n_averages, group_dic, times):
+    def __init__(self, segments, down_freq, n_averages, group_dic, times,
+                 outliers_frac, overlap):
         self.segments = segments
         self.nsegments = len(self.segments)
         self.down_freq = down_freq
@@ -14,6 +16,8 @@ class DataProcessing:
         self.group_dic = group_dic
         self.brms_psd = {}
         self.brms_mean = {}
+        self.overlap = overlap
+        self.outliers_quantile = 1 - (1 - outliers_frac) / 2
         self.brms_sqmean = {}
         self.times = times
         self.freqs = []
@@ -21,24 +25,34 @@ class DataProcessing:
         self.ccfs = {}
         self.mean_cohs = {}
         # Rice estimator for nbins
-        estimated_points = 0
+        estimated_len = 0
         for seg in self.segments:
-            estimated_points += (seg[1] - seg[0]) * self.down_freq
+            estimated_len += (seg[1] - seg[0])
+        estimated_points = int(np.floor(float(estimated_len * self.down_freq) * outliers_frac))
         self.nbins = int(np.ceil((estimated_points ** (1.0 / 3))))
-        self.n_points = int(pow(2, np.floor(np.log((2 * estimated_points) / (self.n_averages + 1)) / np.log(2))))
+        # estimate the number of points for each fft
+        est_points_w_overlap = float(estimated_points / (1 - self.overlap))
+        self.n_points = int(pow(2, np.floor(np.log2(est_points_w_overlap /
+                                                    self.n_averages))))
+        # shift between each FFT window
+        self.n_over_points = int(np.rint(self.n_points * (1 - self.overlap)))
 
     # returns the indexes corresponding to the gpse and gpsb times specified
     # and the number of fft windows that can be fitted in the segment
     def segment_indexes(self, gpsb, gpse):
+        # todo: the fft_per_segments computed here is no longer used, remove it
         fft_per_segment = int(np.floor((gpse - gpsb) *
                                        self.down_freq / self.n_points))
-        gpsb_index = np.argmin(abs(self.times - gpsb))
-        gpse_index = np.argmin(abs(self.times - gpse))
+        gpsb_index = int(np.argmin(abs(self.times - gpsb)))
+        gpse_index = int(np.argmin(abs(self.times - gpse)))
         return fft_per_segment, gpsb_index, gpse_index
 
 
     # computes the psds for the various brmss and stores them in a dictionary
     def cumulative_psd_computation(self):
+        # todo: implement outlier removal in this computation too
+        # but then I should remove the brms outliers from the cross computation too
+        # maybe it is better to clean the brmss when they are generated
         for group, dic in self.group_dic.iteritems():
             self.brms_psd[group] = {}
             self.brms_mean[group] = {}
@@ -49,32 +63,36 @@ class DataProcessing:
                 self.brms_mean[group][band] = 0
                 self.brms_sqmean[group][band] = 0
                 n_fft = 0
+                total_points = 0
                 for (gpsb, gpse), j in zip(self.segments,
                                            xrange(self.nsegments)):
-                    fft_per_segm, start, end = self.segment_indexes(gpsb, gpse)
+                    _, start, end = self.segment_indexes(gpsb, gpse)
                     #print "fftperseg"
                     #print fft_per_segm
                     #print "npoints"
                     #print self.n_points
                     #print "end-start"
                     #print end - start
+                    seg_points = end - start
+                    total_points += seg_points
+                    fft_per_segm = (seg_points - self.n_points) / self.n_over_points + 1
                     for i in xrange(fft_per_segm):
+                        s_start = start + i * self.n_over_points
+                        s_end = s_start + self.n_points
                         self.freqs, spec = sig.welch(
-                            brms[start + i * self.n_points:
-                                 start + (i + 1) * self.n_points],
+                            brms[s_start: s_end],
                             fs=self.down_freq,
                             window='hanning', nperseg=self.n_points)
                         self.brms_psd[group][band] += spec
-                        self.brms_mean[group][band] += np.sum(
-                            brms[start + i * self.n_points:
-                                 start + (i + 1) * self.n_points])
-                        self.brms_sqmean[group][band] += np.sum(
-                            brms[start + i * self.n_points:
-                                 start + (i + 1) * self.n_points] ** 2)
                         n_fft += 1
+                    self.brms_mean[group][band] += np.sum(
+                            brms[start:end])
+                    self.brms_sqmean[group][band] += np.sum(
+                            brms[start:end] ** 2)
+
                 self.brms_psd[group][band] /= n_fft
-                self.brms_mean[group][band] /= (n_fft * self.n_points)
-                self.brms_sqmean[group][band] /= (n_fft * self.n_points)
+                self.brms_mean[group][band] /= total_points
+                self.brms_sqmean[group][band] /= total_points
 
     def auxillary_psd_csd_correlation(self, aux_channel, aux_groups,
                                       data_source):
@@ -89,60 +107,80 @@ class DataProcessing:
         prod_sum = np.zeros(len(brms_bands), dtype='float64')
         aux_square_sum = 0
         nfft = 0
+        total_points = 0
+        first = True
         hist = []
         for ((gpsb, gpse), j) in zip(self.segments, xrange(self.nsegments)):
-            fft_per_segm, start, end = self.segment_indexes(gpsb, gpse)
             aux_data = self.get_channel_data(data_source,
                                              aux_channel, gpsb, gpse)
-            for i in xrange(fft_per_segm):
-                _, psdtemp = sig.welch(aux_data[i * self.n_points
-                                                : (i + 1) * self.n_points],
-                                       fs=self.down_freq,
-                                       window='hanning',
-                                       nperseg=self.n_points)
-                aux_psd += psdtemp
-                aux_sum += np.sum(aux_data[i * self.n_points:
-                                           (i + 1) * self.n_points])
-                aux_square_sum += np.sum(aux_data[i * self.n_points
-                                                  :(i + 1) * self.n_points]**2)
-                for (group, band), k in zip(brms_bands,
-                                            xrange(len(brms_bands))):
-                    band_data = self.group_dic[group]['brms_data'][band][
-                                start + i * self.n_points:
-                                start + (i + 1) * self.n_points]
+            min_thr, max_thr = np.percentile(aux_data, [1 - self.outliers_quantile,
+                                                        self.outliers_quantile])
+            bad_idxs = np.where(np.logical_or((aux_data < min_thr),
+                                              (aux_data > max_thr)))
+            total_points += len(aux_data) - len(bad_idxs)
+            id_segments = []
+            previous_bad = -1
+            for bad in bad_idxs.sort():
+                id_segments.append([previous_bad + 1, bad])
+                previous_bad = bad
+            id_segments.append([previous_bad + 1, len(aux_data)])
+            _, start, end = self.segment_indexes(gpsb, gpse)
+            for seg in id_segments:
+                segment_points = int(seg[1] - seg[0])
+                fft_per_segm = (segment_points - self.n_points) / self.n_over_points + 1
+                for i in xrange(fft_per_segm):
+                    s_start = seg[0] + i * self.n_over_points
+                    s_end = s_start + self.n_points
+                    _, psdtemp = sig.welch(aux_data[start:end],
+                                           fs=self.down_freq,
+                                           window='hanning',
+                                           nperseg=self.n_points)
+                    aux_psd += psdtemp
 
-                    _, csdtemp = sig.csd(band_data,
-                                         aux_data[i * self.n_points: (i + 1) *
-                                                  self.n_points],
-                                         fs=self.down_freq,
-                                         window='hanning',
-                                         nperseg=self.n_points)
-                    csds[k] += csdtemp
-                    prod_sum[k] += np.sum(
-                        aux_data[i * self.n_points: (i + 1) * self.n_points] *
-                        band_data)
-                    if nfft == 0:
-                        h, x_edges, y_edges = self.sparse_histogram(
-                            np.log(band_data),
-                            aux_data[i * self.n_points:
-                                            (i + 1) * self.n_points]
-                            , n_bins=self.nbins)
-                        hist.append([h, x_edges, y_edges])
-                        # TODO: dovrei salvare solo il min e il max degli edges
-                    else:
-                        h, x_edges, y_edges = self.update_histogram(hist[k][0],
-                            hist[k][1], hist[k][2],
-                            np.log(band_data),
-                            aux_data[i * self.n_points:
-                                            (i + 1) * self.n_points]
-                            )
-                        hist[k] = [h, x_edges, y_edges]
-                nfft += 1
+                    for (group, band), k in zip(brms_bands,
+                                                xrange(len(brms_bands))):
+                        band_data = self.group_dic[group]['brms_data'][band][
+                                    start + s_start: start + s_end]
+                        _, csdtemp = sig.csd(band_data,
+                                             aux_data[
+                                             i * self.n_points: (i + 1) *
+                                                                self.n_points],
+                                             fs=self.down_freq,
+                                             window='hanning',
+                                             nperseg=self.n_points)
+                        csds[k] += csdtemp
+                    nfft += 1
+            good_mask = np.ones(len(aux_data), dtype=bool)
+            good_mask[bad_idxs] = False
+
+            aux_sum += np.sum(aux_data[good_mask])
+            aux_square_sum += np.sum(aux_data[good_mask]**2)
+            for (group, band), k in zip(brms_bands,
+                                        xrange(len(brms_bands))):
+                band_data = self.group_dic[group]['brms_data'][band][
+                            start:end]
+                ipsh()
+                # todo: controllo che sia della lunghezza ggiusta
+                prod_sum[k] += np.sum(aux_data[good_mask] * band_data[good_mask])
+                # TODO: since they are linear, I could save only the edges of the edges
+                if first:
+                    h, x_edges, y_edges = self.sparse_histogram(
+                        np.log(band_data[good_mask]), aux_data[good_mask],
+                        n_bins=self.nbins)
+                    hist.append([h, x_edges, y_edges])
+                else:
+                    h, x_edges, y_edges = self.update_histogram(hist[k][0],
+                        hist[k][1], hist[k][2],
+                        np.log(band_data[good_mask]),
+                        aux_data[good_mask])
+
+                    hist[k] = [h, x_edges, y_edges]
+
         aux_psd /= nfft
         abs_csds = np.absolute(csds / nfft) ** 2
-        aux_sum /= (nfft * self.n_points)
-        aux_square_sum /= (nfft * self.n_points)
-        prod_sum /= (nfft * self.n_points)
+        aux_sum /= total_points
+        aux_square_sum /= total_points
+        prod_sum /= total_points
         return{'brms_bands': brms_bands,
                'aux_psd': aux_psd,
                'aux_mean': aux_sum,

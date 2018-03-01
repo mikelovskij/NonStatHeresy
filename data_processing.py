@@ -128,12 +128,12 @@ class DataProcessing:
             min_thr, max_thr = np.percentile(aux_data,
                                              [100 * (1 - self.outliers_quantile),
                                               100 * self.outliers_quantile])
-            bad_idxs = np.nonzero(np.logical_or((aux_data < min_thr),
-                                              (aux_data > max_thr)))[0]
+            bad_idxs = np.sort(np.nonzero(np.logical_or((aux_data < min_thr),
+                                              (aux_data > max_thr)))[0])
             total_points += len(aux_data) - len(bad_idxs)
             id_segments = []
             previous_bad = -1
-            for bad in bad_idxs.sort():
+            for bad in bad_idxs:
                 id_segments.append([previous_bad + 1, bad])
                 previous_bad = bad
             id_segments.append([previous_bad + 1, len(aux_data)])

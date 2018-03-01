@@ -43,7 +43,7 @@ class ChannelParameters:
                 time_discontinuity = False
         except IndexError:
             time_discontinuity = True
-
+        #todo: the resulting timeseries seems to have some small rounding issues
         self.times = np.concatenate((self.times, np.linspace(gpsb, last_gps,
                                                              fft_per_segment,
                                                              endpoint=False)))

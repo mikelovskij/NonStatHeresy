@@ -74,14 +74,7 @@ print "Analyzing lock between %d and %d" % (gpsb, gpse)
 # Coalesce the segments if they are too short.
 approx_fft_duration = int(np.floor(float(gpse - gpsb) / ((1 - par.coherence_overlap) *
                                                          par.nav)))
-seg_mask = np.ones(len(segments), dtype=bool)
-for j in xrange(len(segments) - 1):
-    if (segments[j][1] == segments[j + 1][0]) and (
-                (segments[j + 1][1] - segments[j][0]) < (
-                 10 * approx_fft_duration)):
-        segments[j + 1][0] = segments[j][0]
-        seg_mask[j] = False
-segments = segments[seg_mask]
+
 
 
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++#

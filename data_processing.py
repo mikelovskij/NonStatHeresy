@@ -44,7 +44,8 @@ class DataProcessing:
         fft_per_segment = int(np.floor((gpse - gpsb) *
                                        self.down_freq / self.n_points))
         gpsb_index = int(np.argmin(abs(self.times - gpsb)))
-        gpse_index = int(np.argmin(abs(self.times - gpse)))
+        gpse_index = int(np.argmin(abs(self.times - gpse))) - 1
+        # the -1 should remove the "time jump" between one segment and the next
         return fft_per_segment, gpsb_index, gpse_index
 
 
@@ -111,8 +112,19 @@ class DataProcessing:
         first = True
         hist = []
         for ((gpsb, gpse), j) in zip(self.segments, xrange(self.nsegments)):
+            _, start, end = self.segment_indexes(gpsb, gpse)
             aux_data = self.get_channel_data(data_source,
-                                             aux_channel, gpsb, gpse)
+                                             aux_channel, self.times[start], self.times[end] + 1/self.down_freq)
+            if len(aux_data) > end - start:
+                print "Warning, mismatch between length of brms and aux data"
+                print "length difference={}, adjusting now...".format(len(aux_data) - (end - start))
+                aux_data = aux_data[0:end - start]
+            else:
+                if len(aux_data) < end - start:
+                    print "Warning, mismatch between length of brms and aux data"
+                    print "length difference={}, adjusting now...".format(
+                        len(aux_data) - (end - start))
+                    end = start + len(aux_data)
             min_thr, max_thr = np.percentile(aux_data,
                                              [100 * (1 - self.outliers_quantile),
                                               100 * self.outliers_quantile])
@@ -125,7 +137,7 @@ class DataProcessing:
                 id_segments.append([previous_bad + 1, bad])
                 previous_bad = bad
             id_segments.append([previous_bad + 1, len(aux_data)])
-            _, start, end = self.segment_indexes(gpsb, gpse)
+
             for seg in id_segments:
                 segment_points = int(seg[1] - seg[0])
                 fft_per_segm = (segment_points - self.n_points) / self.n_over_points + 1
@@ -160,7 +172,6 @@ class DataProcessing:
                                         xrange(len(brms_bands))):
                 band_data = self.group_dic[group]['brms_data'][band][
                             start:end]
-                ipsh()
                 # todo: controllo che sia della lunghezza ggiusta
                 prod_sum[k] += np.sum(aux_data[good_mask] * band_data[good_mask])
                 # TODO: since they are linear, I could save only the edges of the edges

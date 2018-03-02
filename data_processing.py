@@ -167,15 +167,16 @@ class DataProcessing:
             aux_sum += np.sum(aux_data[good_mask])
             aux_square_sum += np.sum(aux_data[good_mask]**2)
             # this condition, somewhat checks for too flat channels
-            if (aux_data[good_mask].max() - aux_data[good_mask].min()) > (
-                    aux_data[good_mask].mean() / (10 ** 10)):
-                for (group, band), k in zip(brms_bands,
-                                            xrange(len(brms_bands))):
-                    band_data = self.group_dic[group]['brms_data'][band][
-                                start:end]
-                    # todo: controllo che sia della lunghezza ggiusta
-                    prod_sum[k] += np.sum(aux_data[good_mask] * band_data[good_mask])
-                    # TODO: since they are linear, I could save only the edges of the edges
+            do_hist = (aux_data[good_mask].max() - aux_data[good_mask].min()) > (
+                    aux_data[good_mask].mean() / (10 ** 10))
+
+            for (group, band), k in zip(brms_bands,
+                                        xrange(len(brms_bands))):
+                band_data = self.group_dic[group]['brms_data'][band][
+                            start:end]
+                prod_sum[k] += np.sum(aux_data[good_mask] * band_data[good_mask])
+                # TODO: since they are linear, I could save only the edges of the edges
+                if do_hist:
                     if first:
                         h, x_edges, y_edges = self.sparse_histogram(
                             np.log(band_data[good_mask]), aux_data[good_mask],
@@ -188,10 +189,13 @@ class DataProcessing:
                             aux_data[good_mask])
                         hist[k] = [h, x_edges, y_edges]
 
+            if do_hist:
                 first = False
+        print nfft
+        if nfft > 0:
+            aux_psd /= nfft
+            abs_csds = np.absolute(csds / nfft) ** 2
 
-        aux_psd /= nfft
-        abs_csds = np.absolute(csds / nfft) ** 2
         aux_sum /= total_points
         aux_square_sum /= total_points
         prod_sum /= total_points
@@ -213,10 +217,15 @@ class DataProcessing:
             for (group, band), k in zip(brms_dict, xrange(len(brms_dict))):
                 abs_csd = aux_dict['abs_csds'][k]
                 band_psd = self.brms_psd[group][band]
-                self.cohs[aux_name][group + '_' + band] = abs_csd / (band_psd *
-                                                                     aux_psd)
-                self.mean_cohs[aux_name][group + '_' + band] = np.mean(self.cohs[aux_name][group + '_' + band])
-
+                if abs_csd.any():
+                    self.cohs[aux_name][group + '_' + band] = abs_csd / (band_psd *
+                                                                         aux_psd)
+                    self.mean_cohs[aux_name][group + '_' + band] = np.mean(self.cohs[aux_name][group + '_' + band])
+                else:
+                    # put to zero if abs_csd is zero
+                    self.cohs[aux_name][group + '_' + band] = abs_csd
+                    self.mean_cohs[aux_name][group + '_' + band] = 0
+                    
     def pearson_cohefficient_computation(self, aux_results):
         for aux_name, aux_dict in aux_results.iteritems():
             self.ccfs[aux_name] = {}

@@ -166,25 +166,29 @@ class DataProcessing:
 
             aux_sum += np.sum(aux_data[good_mask])
             aux_square_sum += np.sum(aux_data[good_mask]**2)
-            for (group, band), k in zip(brms_bands,
-                                        xrange(len(brms_bands))):
-                band_data = self.group_dic[group]['brms_data'][band][
-                            start:end]
-                # todo: controllo che sia della lunghezza ggiusta
-                prod_sum[k] += np.sum(aux_data[good_mask] * band_data[good_mask])
-                # TODO: since they are linear, I could save only the edges of the edges
-                if first:
-                    h, x_edges, y_edges = self.sparse_histogram(
-                        np.log(band_data[good_mask]), aux_data[good_mask],
-                        n_bins=self.nbins)
-                    hist.append([h, x_edges, y_edges])
-                else:
-                    h, x_edges, y_edges = self.update_histogram(hist[k][0],
-                        hist[k][1], hist[k][2],
-                        np.log(band_data[good_mask]),
-                        aux_data[good_mask])
+            # this condition, somewhat checks for too flat channels
+            if (aux_data[good_mask].max() - aux_data[good_mask].min()) > (
+                    aux_data[good_mask].mean() / (10 ** 10)):
+                for (group, band), k in zip(brms_bands,
+                                            xrange(len(brms_bands))):
+                    band_data = self.group_dic[group]['brms_data'][band][
+                                start:end]
+                    # todo: controllo che sia della lunghezza ggiusta
+                    prod_sum[k] += np.sum(aux_data[good_mask] * band_data[good_mask])
+                    # TODO: since they are linear, I could save only the edges of the edges
+                    if first:
+                        h, x_edges, y_edges = self.sparse_histogram(
+                            np.log(band_data[good_mask]), aux_data[good_mask],
+                            n_bins=self.nbins)
+                        hist.append([h, x_edges, y_edges])
+                    else:
+                        h, x_edges, y_edges = self.update_histogram(hist[k][0],
+                            hist[k][1], hist[k][2],
+                            np.log(band_data[good_mask]),
+                            aux_data[good_mask])
+                        hist[k] = [h, x_edges, y_edges]
 
-                    hist[k] = [h, x_edges, y_edges]
+                first = False
 
         aux_psd /= nfft
         abs_csds = np.absolute(csds / nfft) ** 2

@@ -195,7 +195,9 @@ class DataProcessing:
         if nfft > 0:
             aux_psd /= nfft
             abs_csds = np.absolute(csds / nfft) ** 2
-
+        else:
+            abs_csds = np.zeros((len(brms_bands), int(self.n_points / 2) + 1),
+                            dtype='float64')
         aux_sum /= total_points
         aux_square_sum /= total_points
         prod_sum /= total_points
@@ -225,7 +227,7 @@ class DataProcessing:
                     # put to zero if abs_csd is zero
                     self.cohs[aux_name][group + '_' + band] = abs_csd
                     self.mean_cohs[aux_name][group + '_' + band] = 0
-                    
+
     def pearson_cohefficient_computation(self, aux_results):
         for aux_name, aux_dict in aux_results.iteritems():
             self.ccfs[aux_name] = {}

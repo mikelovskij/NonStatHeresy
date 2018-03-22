@@ -148,13 +148,13 @@ def main(initfile, ntop):
             row = [
                 "<a target=_blank href={0}#{1}>{2}</a><br>CCFs = {3:.2f}"
                 .format(cohe_page_name,
-                        ccftab_names[group][i].split(' ')[0].split(':')[1],
+                        ccftab_names[group][i].split(' ')[0].split(':')[1] if ccftab_names[group][i] else '',
                         ccftab_names[group][i],
                         ccftab[group][i]),
                 "<a target=_blank href={0}#{1}>{2}</a>"
                 "<br>Mean Coher. = {3:.3f}"
                 .format(cohe_page_name,
-                        cohtab_names[group][i].split(' ')[0].split(':')[1],
+                        cohtab_names[group][i].split(' ')[0].split(':')[1] if cohtab_names[group][i] else '',
                         cohtab_names[group][i],
                         cohtab[group][i])
                     ]
@@ -167,13 +167,13 @@ def main(initfile, ntop):
                 row = [
                     "<a target=_blank href={0}#{1}>{2}</a><br>CCFs = {3:.2f}"
                     .format(cohe_page_name,
-                            ccftab_names[band][i].split(':')[1],
+                            ccftab_names[band][i].split(':')[1] if ccftab_names[band][i] else '',
                             ccftab_names[band][i],
                             ccftab[band][i]),
                     "<a target=_blank href={0}#{1}>{2}</a>"
                     "<br>Mean Coher. = {3:.3f}"
                     .format(cohe_page_name,
-                            cohtab_names[band][i].split(':')[1],
+                            cohtab_names[band][i].split(':')[1] if cohtab_names[band][i] else '',
                             cohtab_names[band][i],
                             cohtab[band][i])
                         ]

@@ -238,8 +238,12 @@ class DataProcessing:
                 p_mn = aux_dict['prod_mean'][k]
                 b_mn = self.brms_mean[group][band]
                 b_sq_mn = self.brms_sqmean[group][band]
-                self.ccfs[aux_name][group + '_' + band] = (p_mn - b_mn * a_mn) \
-                    / np.sqrt((b_sq_mn - b_mn ** 2) * (a_sq_mn - a_mn ** 2))
+                num = (p_mn - b_mn * a_mn)
+                den = np.sqrt((b_sq_mn - b_mn ** 2) * (a_sq_mn - a_mn ** 2))
+                if den != 0:
+                    self.ccfs[aux_name][group + '_' + band] = num / den
+                else:
+                    self.ccfs[aux_name][group + '_' + band] = 0
 
     @staticmethod
     def sparse_histogram(x, y, n_bins):

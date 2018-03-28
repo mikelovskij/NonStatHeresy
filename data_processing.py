@@ -179,8 +179,8 @@ class DataProcessing:
                 band_data = self.group_dic[group]['brms_data'][band][
                             start:end]
                 prod_sum[k] += np.sum(aux_data[good_mask] * band_data[good_mask])
-                bad_sum[k] += np.sum(band_data[not good_mask])
-                bad_sq_sum[k] += np.sum(band_data[not good_mask]**2)
+                bad_sum[k] += np.sum(band_data[np.logical_not(good_mask)])
+                bad_sq_sum[k] += np.sum(band_data[np.logical_not(good_mask)]**2)
                 # TODO: since they are linear, I could save only the edges of the edges
                 if do_hist:
                     if first:
@@ -247,9 +247,9 @@ class DataProcessing:
             for (group, band), k in zip(brms_dict, xrange(len(brms_dict))):
                 p_mn = aux_dict['prod_mean'][k]
                 b_mn = self.brms_sum[group][band][0] - aux_dict['bad_sum'][k]
-                b_mn /= (self.brms_sum[group][band][0] - aux_dict['total_bad_points'])
-                b_sq_mn = self.brms_sqsum[group][band] - aux_dict['bad_square_sum'][k]
-                b_sq_mn /= (self.brms_sqsum[group][band][0] - aux_dict['total_bad_points'])
+                b_mn /= (self.brms_sum[group][band][1] - aux_dict['total_bad_points'])
+                b_sq_mn = self.brms_sqsum[group][band][0] - aux_dict['bad_square_sum'][k]
+                b_sq_mn /= (self.brms_sqsum[group][band][1] - aux_dict['total_bad_points'])
                 num = (p_mn - b_mn * a_mn)
                 den = np.sqrt((b_sq_mn - b_mn ** 2) * (a_sq_mn - a_mn ** 2))
                 if den != 0:

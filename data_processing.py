@@ -15,10 +15,10 @@ class DataProcessing:
         self.n_averages = n_averages
         self.group_dic = group_dic
         self.brms_psd = {}
-        self.brms_mean = {}
+        self.brms_sum = {}
         self.overlap = overlap
         self.outliers_quantile = 1 - (1 - outliers_frac) / 2
-        self.brms_sqmean = {}
+        self.brms_sqsum = {}
         self.times = times
         self.freqs = []
         self.cohs = {}
@@ -56,13 +56,13 @@ class DataProcessing:
         # maybe it is better to clean the brmss when they are generated
         for group, dic in self.group_dic.iteritems():
             self.brms_psd[group] = {}
-            self.brms_mean[group] = {}
-            self.brms_sqmean[group] = {}
+            self.brms_sum[group] = {}
+            self.brms_sqsum[group] = {}
             for band, brms in dic['brms_data'].iteritems():
                 self.brms_psd[group][band] = np.zeros(
                     (int(self.n_points / 2) + 1), dtype='float64')
-                self.brms_mean[group][band] = 0
-                self.brms_sqmean[group][band] = 0
+                self.brms_sum[group][band] = [0, 0]
+                self.brms_sqsum[group][band] = [0, 0]
                 n_fft = 0
                 total_points = 0
                 for (gpsb, gpse), j in zip(self.segments,
@@ -86,14 +86,14 @@ class DataProcessing:
                             window='hanning', nperseg=self.n_points)
                         self.brms_psd[group][band] += spec
                         n_fft += 1
-                    self.brms_mean[group][band] += np.sum(
+                    self.brms_sum[group][band][0] += np.sum(
                             brms[start:end])
-                    self.brms_sqmean[group][band] += np.sum(
+                    self.brms_sqsum[group][band][0] += np.sum(
                             brms[start:end] ** 2)
 
                 self.brms_psd[group][band] /= n_fft
-                self.brms_mean[group][band] /= total_points
-                self.brms_sqmean[group][band] /= total_points
+                self.brms_sum[group][band][1] = total_points
+                self.brms_sqsum[group][band][1] = total_points
 
     def auxillary_psd_csd_correlation(self, aux_channel, aux_groups,
                                       data_source):
@@ -106,9 +106,12 @@ class DataProcessing:
                             dtype='complex128')
         aux_sum = 0
         prod_sum = np.zeros(len(brms_bands), dtype='float64')
+        bad_sum = np.zeros(len(brms_bands), dtype='float64')
+        bad_sq_sum = np.zeros(len(brms_bands), dtype='float64')
         aux_square_sum = 0
         nfft = 0
         total_points = 0
+        total_bad_points = 0
         first = True
         hist = []
         for ((gpsb, gpse), j) in zip(self.segments, xrange(self.nsegments)):
@@ -131,6 +134,7 @@ class DataProcessing:
             bad_idxs = np.sort(np.nonzero(np.logical_or((aux_data < min_thr),
                                               (aux_data > max_thr)))[0])
             total_points += len(aux_data) - len(bad_idxs)
+            total_bad_points += len(bad_idxs)
             id_segments = []
             previous_bad = -1
             for bad in bad_idxs:
@@ -175,6 +179,8 @@ class DataProcessing:
                 band_data = self.group_dic[group]['brms_data'][band][
                             start:end]
                 prod_sum[k] += np.sum(aux_data[good_mask] * band_data[good_mask])
+                bad_sum[k] += np.sum(band_data[not good_mask])
+                bad_sq_sum[k] += np.sum(band_data[not good_mask]**2)
                 # TODO: since they are linear, I could save only the edges of the edges
                 if do_hist:
                     if first:
@@ -206,9 +212,13 @@ class DataProcessing:
                'aux_mean': aux_sum,
                'aux_square_mean': aux_square_sum,
                'prod_mean': prod_sum,
+               'bad_sum': bad_sum,
+               'bad_square_sum': bad_sq_sum,
                'abs_csds': abs_csds,
                'histogram': hist,
-               'aux_name': aux_channel}
+               'aux_name': aux_channel,
+               'total_bad_points': total_bad_points,
+               'total_points': total_points}
 
     def coherence_computation(self, aux_results):
         for aux_name, aux_dict in aux_results.iteritems():
@@ -236,8 +246,10 @@ class DataProcessing:
             a_sq_mn = aux_dict['aux_square_mean']
             for (group, band), k in zip(brms_dict, xrange(len(brms_dict))):
                 p_mn = aux_dict['prod_mean'][k]
-                b_mn = self.brms_mean[group][band]
-                b_sq_mn = self.brms_sqmean[group][band]
+                b_mn = self.brms_sum[group][band][0] - aux_dict['bad_sum'][k]
+                b_mn /= (self.brms_sum[group][band][0] - aux_dict['total_bad_points'])
+                b_sq_mn = self.brms_sqsum[group][band] - aux_dict['bad_square_sum'][k]
+                b_sq_mn /= (self.brms_sqsum[group][band][0] - aux_dict['total_bad_points'])
                 num = (p_mn - b_mn * a_mn)
                 den = np.sqrt((b_sq_mn - b_mn ** 2) * (a_sq_mn - a_mn ** 2))
                 if den != 0:

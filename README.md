@@ -8,10 +8,10 @@ In order to launch  the first step one has to execute:
   * 
   ```sh
   python /path/to/NonStatMoni/Brms_generator/brms_main.py -i /path/to/config_file.ini -d /path/to/results/folder -b gpsb -e gpse -scn equal -sc V1:DQ_META_ITF_Mode -st -7 
-```
+  ```
 
 ** Notes: a results subfolder named "GPSB - GPSE - resolution xxxx - npoints xx, overlap xxxxxx" will be automatically created in the folder ```/path/to/results/folder``` . Where the gpsb, gpse and resolution, npoints and overlap parameters will be taken from the configuration file. This folder will contain a "brms.hdf5" hdf5 file containing the results of the computation. 
-
+```
 arguments of brms_main.py:
   -h, --help            show this help message and exit
   -i cfgFILE, --init cfgFILE
@@ -38,7 +38,7 @@ arguments of brms_main.py:
                         any of these flags are active will be excluded from
                         analysis
 
-
+```
 set resfolder = "`find /users/valentin/TestConfigs/$1 -maxdepth 1 -type d -name '*'$gpsb'*' -print -quit`"
 echo $resfolder
 python /users/valentin/PycharmProjects/Nonstatmoni_reader/nonstatmoni_main.py -i /users/valentin/TestConfigs/$1.ini -d /users/valentin/TestConfigs/$1/report/ -b "$resfolder"/brms.hdf5 -p 5 --ntop 15 

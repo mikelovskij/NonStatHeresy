@@ -42,17 +42,21 @@ insert better description here
                           analysis
 
   ```
-  ```
+```
 set resfolder = "`find /users/valentin/TestConfigs/$1 -maxdepth 1 -type d -name '*'$gpsb'*' -print -quit`"
 echo $resfolder
  
-  ```
+```
   
-* **Second step**: once the results of the first step have been produced, NonStatMoni uses the processed BRMSs to attempt the estimation of low frequency coherences and correlation cohefficients between the BRMSs and slow auxiliary channels data. This step can use the same configuration file as the first step or, optionally, a different one, as long as the configuration file does not contain additional or different BRMS bands or channels with respect to the ones processed in the first step. Additionally, at the end of the computation of coherences and correlation cohefficients, the generation of the relevant plots and results page is also performed in this step. in order to execute this step one shall run
- ```sh
- python /users/valentin/PycharmProjects/Nonstatmoni_reader/nonstatmoni_main.py -i /users/valentin/TestConfigs/$1.ini -d /users/valentin/TestConfigs/$1/report/ -b "$resfolder"/brms.hdf5 -p 5 --ntop 15
+* **Second step**: once the results of the first step have been produced, NonStatMoni uses the processed BRMSs to attempt the estimation of low frequency coherences and correlation cohefficients between the BRMSs and slow auxiliary channels data. This step can use the same configuration file as the first step or, optionally, a different one, as long as the configuration file does not contain additional or different BRMS bands or channels with respect to the ones processed in the first step.
+In order to speed up the operations it is possible to use multithreading, by choosing the number of processes with the "-p" argument.
+Additionally, at the end of the computation of coherences and correlation cohefficients, the generation of the relevant plots and results page is also performed in this step. in order to execute this step one shall run
+
+Example command used to launch the second step:
+```sh
+ python /path/to/Nonstatmoni/nonstatmoni_main.py -i /path/to/Config.ini -d /path/to/output/results-b /path/to/brms.hdf5 -p 5 --ntop 15
  ```
-where x
+
  ```
 usage: nonstatmoni_main.py [-h] [-i cfgFILE] [-b brms_file] [-d OutDir]
                            [-p NumberOfProcesses] [-n nTop]
